@@ -473,12 +473,14 @@ async function handleVerify(
 
 ### Behavior summary
 
-On activation, the component follows this order:
+On activation, the component behaves like this:
 
-1. If you listen to `@press`, your handler is used as a full override
-2. If `href` is provided, native anchor navigation is used
-3. On mobile-capable environments, it attempts `navigator.share(...)`
-4. Otherwise it uses a type-specific web share URL, direct URL, or centered popup where supported
+1. If you listen to `@press`, your handler is called and the built-in sharer logic is skipped
+2. If `href` is provided, the forwarded base anchor still navigates normally
+3. If there is no `href` and no custom sharer override, mobile-capable environments attempt `navigator.share(...)`
+4. Otherwise, the built-in sharer uses a type-specific web share URL, direct URL, or centered popup where supported
+
+If you want a pure custom action with no native navigation, avoid combining `@press` with `href`.
 
 ### Basic share example (LinkedIn)
 
@@ -587,7 +589,7 @@ import '@rcaferati/vue-awesome-button/styles.css';
 
 ### `href` mode (bypass sharer logic)
 
-If `href` is present, the component behaves like an anchor and does not execute the share flow.
+If `href` is present, the component behaves like an anchor and does not execute the built-in share flow.
 
 ```vue
 <script setup lang="ts">
@@ -660,6 +662,8 @@ Use a named icon slot and omit default slot text. Add an accessible label throug
 Use the progress `@press` contract and call `next(true)` or `next(false, label?)` when the work completes.
 
 ```ts
+import type { ProgressNext } from '@rcaferati/vue-awesome-button';
+
 async function save(_event: MouseEvent | KeyboardEvent | PointerEvent, next: ProgressNext) {
   try {
     await saveRecord();

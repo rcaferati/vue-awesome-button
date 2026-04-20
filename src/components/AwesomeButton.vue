@@ -29,6 +29,34 @@ defineOptions({
 
 type PointerZone = 'left' | 'middle' | 'right';
 type PressPhase = 'idle' | 'pressed' | 'locked' | 'releasing';
+type AutoWidthValues = {
+  content: number | null;
+  label: number | null;
+};
+type AutoTextTransitionFlow = 'grow-first' | 'text-first' | 'text-only';
+type AutoTextTransitionPhase =
+  | 'grow-sizing'
+  | 'grow-text'
+  | 'shrink-text'
+  | 'shrink-sizing';
+type AutoTextTransitionState = {
+  targetText: string;
+  targetWidths: AutoWidthValues;
+  phase: AutoTextTransitionPhase;
+  runId: number;
+};
+type AutoWidthInlineStyleSnapshot = {
+  contentWidth: string;
+  contentFlexBasis: string;
+  contentFlexGrow: string;
+  contentFlexShrink: string;
+  contentTransition: string;
+  labelWidth: string;
+  labelFlexBasis: string;
+  labelFlexGrow: string;
+  labelFlexShrink: string;
+  labelTransition: string;
+};
 type TextTransitionFrame = {
   from: string;
   to: string;
@@ -88,18 +116,23 @@ const autoWidths = ref({
 });
 const autoWidthReady = ref(false);
 const autoWidthTransitioning = ref(false);
-const pendingAutoWidthMeasure = ref(false);
+const deferredAutoWidthMeasureRequested = ref(false);
 const skipNextAutoWidthUpdatedMeasure = ref(false);
+const lastAutoWidthContentSignature = ref<string | null>(null);
 const autoWidthTransitionRunId = ref(0);
 const activePointerId = ref<number | null>(null);
 const pointerStartY = ref<number | null>(null);
 const releaseRunId = ref(0);
 const autoWidthRafId = ref<number | null>(null);
+const autoWidthTargetRafId = ref<number | null>(null);
 const resizeObserverRef = ref<ResizeObserver | null>(null);
 const textTransitionRafId = ref<number | null>(null);
+const textTransitionDelayRafId = ref<number | null>(null);
 const slotString = ref<string | null>(null);
 const displayedText = ref<string | null>(null);
 const targetText = ref<string | null>(null);
+const autoTextTransitionState = ref<AutoTextTransitionState | null>(null);
+const autoTextTransitionRunId = ref(0);
 
 let releaseCleanup: (() => void) | null = null;
 let autoWidthTransitionCleanup: (() => void) | null = null;
@@ -216,6 +249,117 @@ function readSnappedWidth(element: HTMLElement | null): number | null {
   }
 
   return null;
+}
+
+function readClonedAutoWidths(
+  contentElement: HTMLElement,
+  measurementLabelText: string
+): AutoWidthValues | null {
+  const parentElement = contentElement.parentElement;
+
+  if (!parentElement) {
+    return null;
+  }
+
+  const clone = contentElement.cloneNode(true) as HTMLElement;
+  const cloneLabel = clone.querySelector('.aws-btn__label') as HTMLElement | null;
+
+  clone.style.position = 'absolute';
+  clone.style.visibility = 'hidden';
+  clone.style.pointerEvents = 'none';
+  clone.style.left = '-9999px';
+  clone.style.top = '0';
+  clone.style.width = 'auto';
+  clone.style.flexBasis = 'auto';
+  clone.style.flexGrow = '0';
+  clone.style.flexShrink = '1';
+  clone.style.transition = 'none';
+
+  if (cloneLabel) {
+    cloneLabel.textContent = measurementLabelText;
+    cloneLabel.style.width = 'auto';
+    cloneLabel.style.flexBasis = 'auto';
+    cloneLabel.style.flexGrow = '0';
+    cloneLabel.style.flexShrink = '1';
+    cloneLabel.style.transition = 'none';
+  }
+
+  parentElement.appendChild(clone);
+
+  const widths = {
+    content: readSnappedWidth(clone),
+    label: readSnappedWidth(cloneLabel),
+  };
+
+  clone.remove();
+
+  if (widths.content == null && widths.label == null) {
+    return null;
+  }
+
+  return widths;
+}
+
+function getMeasuredAutoWidthsForText(text: string) {
+  const contentElement = contentRef.value;
+
+  if (!contentElement) {
+    return null;
+  }
+
+  return readClonedAutoWidths(contentElement, text);
+}
+
+function readLiveAutoWidths(
+  contentElement: HTMLElement,
+  labelElement: HTMLElement
+): AutoWidthValues {
+  contentElement.style.width = 'auto';
+  contentElement.style.flexBasis = 'auto';
+  contentElement.style.flexGrow = '0';
+  contentElement.style.flexShrink = '1';
+  labelElement.style.width = 'auto';
+  labelElement.style.flexBasis = 'auto';
+  labelElement.style.flexGrow = '0';
+  labelElement.style.flexShrink = '1';
+
+  return {
+    content: readSnappedWidth(contentElement),
+    label: readSnappedWidth(labelElement),
+  };
+}
+
+function readMeasuredAutoWidths(
+  contentElement: HTMLElement,
+  labelElement: HTMLElement,
+  measurementLabelText: string | null
+): AutoWidthValues {
+  return (
+    (measurementLabelText != null
+      ? readClonedAutoWidths(contentElement, measurementLabelText)
+      : null) ?? readLiveAutoWidths(contentElement, labelElement)
+  );
+}
+
+function getAutoTextTransitionFlow(
+  targetWidths: AutoWidthValues | null
+): AutoTextTransitionFlow | null {
+  const currentWidth = autoWidths.value.content;
+  const nextWidth = targetWidths?.content;
+
+  if (currentWidth == null || nextWidth == null) {
+    return null;
+  }
+
+  if (nextWidth > currentWidth) {
+    return 'grow-first';
+  }
+
+  if (nextWidth < currentWidth) {
+    return 'text-first';
+  }
+
+  return 'text-only';
 }
 
 function isTransformTransitionEnd(event: Event) {
@@ -425,6 +569,20 @@ const shouldRenderAnimatedText = computed(
 const shouldRenderLabel = computed(
   () => shouldRenderAnimatedText.value === true || hasDefaultSlot.value === true
 );
+const autoWidthContentSignature = computed(() => {
+  if (!shouldSnapAutoWidth.value) {
+    return null;
+  }
+
+  return [
+    `placeholder:${isPlaceholder.value}`,
+    `iconOnly:${isIconOnly.value}`,
+    `before:${hasBeforeSlot.value}`,
+    `default:${hasDefaultSlot.value}`,
+    `after:${hasAfterSlot.value}`,
+    `text:${rawStringSlotValue.value ?? ''}`,
+  ].join('||');
+});
 
 function clearPointerZone() {
   pointerZone.value = null;
@@ -437,8 +595,16 @@ function clearAutoWidthRaf() {
   }
 }
 
+function clearAutoWidthTargetRaf() {
+  if (autoWidthTargetRafId.value !== null && typeof window !== 'undefined') {
+    window.cancelAnimationFrame(autoWidthTargetRafId.value);
+    autoWidthTargetRafId.value = null;
+  }
+}
+
 function cancelAutoWidthTransition() {
   autoWidthTransitionRunId.value += 1;
+  clearAutoWidthTargetRaf();
 
   if (autoWidthTransitionCleanup) {
     autoWidthTransitionCleanup();
@@ -446,7 +612,7 @@ function cancelAutoWidthTransition() {
   }
 
   autoWidthTransitioning.value = false;
-  pendingAutoWidthMeasure.value = false;
+  deferredAutoWidthMeasureRequested.value = false;
   skipNextAutoWidthUpdatedMeasure.value = false;
 }
 
@@ -460,6 +626,52 @@ function clearTextTransitionRaf() {
     window.cancelAnimationFrame(textTransitionRafId.value);
     textTransitionRafId.value = null;
   }
+}
+
+function clearTextTransitionDelayRaf() {
+  if (textTransitionDelayRafId.value !== null && typeof window !== 'undefined') {
+    window.cancelAnimationFrame(textTransitionDelayRafId.value);
+    textTransitionDelayRafId.value = null;
+  }
+}
+
+function clearAutoTextTransitionState() {
+  autoTextTransitionRunId.value += 1;
+  autoTextTransitionState.value = null;
+  clearTextTransitionDelayRaf();
+}
+
+function deferAutoWidthMeasure() {
+  deferredAutoWidthMeasureRequested.value = true;
+}
+
+function replayDeferredAutoWidthMeasure() {
+  if (!deferredAutoWidthMeasureRequested.value) {
+    return;
+  }
+
+  // Wait for Vue to commit the final label DOM before scheduling the RAF-based
+  // remeasurement, otherwise we can read a stale intermediate text frame.
+  void nextTick(() => {
+    if (!deferredAutoWidthMeasureRequested.value) {
+      return;
+    }
+
+    deferredAutoWidthMeasureRequested.value = false;
+    scheduleAutoWidthMeasure();
+  });
+}
+
+function isAutoTextChoreographyActive() {
+  return autoTextTransitionState.value != null;
+}
+
+function shouldSuppressAutoWidthMeasureForTextTransition() {
+  return (
+    shouldSnapAutoWidth.value === true &&
+    props.textTransition === true &&
+    (isAutoTextChoreographyActive() || textTransitionRafId.value !== null)
+  );
 }
 
 function cancelPendingRelease() {
@@ -674,18 +886,15 @@ function finalizeAutoWidthTransition(runId: number) {
     autoWidthTransitionCleanup = null;
   }
 
-  const shouldRunPendingMeasure = pendingAutoWidthMeasure.value;
-
-  pendingAutoWidthMeasure.value = false;
   skipNextAutoWidthUpdatedMeasure.value = true;
   autoWidthTransitioning.value = false;
-
-  if (shouldRunPendingMeasure) {
-    scheduleAutoWidthMeasure();
-  }
+  advanceAutoTextChoreographyAfterSizeWrite();
 }
 
-function startAutoWidthTransition() {
+function startAutoWidthTransition(nextWidths: {
+  content: number | null;
+  label: number | null;
+}) {
   if (
     props.animateSize !== true ||
     autoWidthReady.value !== true ||
@@ -702,11 +911,13 @@ function startAutoWidthTransition() {
 
   autoWidthTransitionCleanup?.();
   autoWidthTransitionCleanup = null;
+  clearAutoWidthTargetRaf();
   autoWidthTransitioning.value = true;
 
   const cleanup = () => {
     contentElement?.removeEventListener('transitionend', handleTransitionEnd);
     labelElement?.removeEventListener('transitionend', handleTransitionEnd);
+    clearAutoWidthTargetRaf();
     window.clearTimeout(timeoutId);
     if (autoWidthTransitionCleanup === cleanup) {
       autoWidthTransitionCleanup = null;
@@ -738,6 +949,17 @@ function startAutoWidthTransition() {
   contentElement?.addEventListener('transitionend', handleTransitionEnd);
   labelElement?.addEventListener('transitionend', handleTransitionEnd);
   autoWidthTransitionCleanup = cleanup;
+
+  autoWidthTargetRafId.value = window.requestAnimationFrame(() => {
+    autoWidthTargetRafId.value = null;
+
+    if (autoWidthTransitionRunId.value !== runId) {
+      return;
+    }
+
+    autoWidths.value = nextWidths;
+    autoWidthReady.value = nextWidths.content != null;
+  });
 }
 
 function updateAutoWidths(nextWidths: {
@@ -749,6 +971,7 @@ function updateAutoWidths(nextWidths: {
     autoWidths.value.label !== nextWidths.label;
 
   if (!widthsChanged) {
+    advanceAutoTextChoreographyAfterSizeWrite();
     return;
   }
 
@@ -759,15 +982,85 @@ function updateAutoWidths(nextWidths: {
     autoWidths.value.content != null;
 
   if (shouldTransition) {
-    startAutoWidthTransition();
+    startAutoWidthTransition(nextWidths);
+    return;
   }
 
   autoWidths.value = nextWidths;
   autoWidthReady.value = nextWidths.content != null;
+  advanceAutoTextChoreographyAfterSizeWrite();
+}
+
+function captureAutoWidthInlineStyleSnapshot(
+  contentElement: HTMLElement,
+  labelElement: HTMLElement
+): AutoWidthInlineStyleSnapshot {
+  return {
+    contentWidth: contentElement.style.width,
+    contentFlexBasis: contentElement.style.flexBasis,
+    contentFlexGrow: contentElement.style.flexGrow,
+    contentFlexShrink: contentElement.style.flexShrink,
+    contentTransition: contentElement.style.transition,
+    labelWidth: labelElement.style.width,
+    labelFlexBasis: labelElement.style.flexBasis,
+    labelFlexGrow: labelElement.style.flexGrow,
+    labelFlexShrink: labelElement.style.flexShrink,
+    labelTransition: labelElement.style.transition,
+  };
+}
+
+function restoreAutoWidthInlineStyles(
+  contentElement: HTMLElement,
+  labelElement: HTMLElement,
+  snapshot: AutoWidthInlineStyleSnapshot
+) {
+  contentElement.style.width = snapshot.contentWidth;
+  contentElement.style.flexBasis = snapshot.contentFlexBasis;
+  contentElement.style.flexGrow = snapshot.contentFlexGrow;
+  contentElement.style.flexShrink = snapshot.contentFlexShrink;
+  contentElement.style.transition = snapshot.contentTransition;
+  labelElement.style.width = snapshot.labelWidth;
+  labelElement.style.flexBasis = snapshot.labelFlexBasis;
+  labelElement.style.flexGrow = snapshot.labelFlexGrow;
+  labelElement.style.flexShrink = snapshot.labelFlexShrink;
+  labelElement.style.transition = snapshot.labelTransition;
+}
+
+function restoreAutoWidthTransitionStart(
+  contentElement: HTMLElement,
+  labelElement: HTMLElement,
+  startWidths: AutoWidthValues,
+  snapshot: AutoWidthInlineStyleSnapshot
+) {
+  contentElement.style.transition = 'none';
+  labelElement.style.transition = 'none';
+  contentElement.style.width = `${startWidths.content}px`;
+  contentElement.style.flexBasis = `${startWidths.content}px`;
+  contentElement.style.flexGrow = '0';
+  contentElement.style.flexShrink = '0';
+
+  if (startWidths.label != null) {
+    labelElement.style.width = `${startWidths.label}px`;
+    labelElement.style.flexBasis = `${startWidths.label}px`;
+    labelElement.style.flexGrow = '0';
+    labelElement.style.flexShrink = '0';
+  } else {
+    labelElement.style.width = snapshot.labelWidth;
+    labelElement.style.flexBasis = snapshot.labelFlexBasis;
+    labelElement.style.flexGrow = snapshot.labelFlexGrow;
+    labelElement.style.flexShrink = snapshot.labelFlexShrink;
+  }
+
+  // Commit the restored pixel start point before Vue patches the new target.
+  void contentElement.offsetWidth;
+  void labelElement.offsetWidth;
+  contentElement.style.transition = snapshot.contentTransition;
+  labelElement.style.transition = snapshot.labelTransition;
 }
 
 function measureAutoWidth() {
   if (!shouldSnapAutoWidth.value) {
+    clearAutoTextTransitionState();
     resetAutoWidthState();
     if (
       autoWidths.value.content !== DEFAULT_AUTO_WIDTHS.content ||
@@ -798,44 +1091,60 @@ function measureAutoWidth() {
     return;
   }
 
-  const previousInlineValues = {
-    contentWidth: contentElement.style.width,
-    contentFlexBasis: contentElement.style.flexBasis,
-    contentFlexGrow: contentElement.style.flexGrow,
-    contentFlexShrink: contentElement.style.flexShrink,
-    labelWidth: labelElement.style.width,
-    labelFlexBasis: labelElement.style.flexBasis,
-    labelFlexGrow: labelElement.style.flexGrow,
-    labelFlexShrink: labelElement.style.flexShrink,
+  const inlineStyleSnapshot = captureAutoWidthInlineStyleSnapshot(
+    contentElement,
+    labelElement
+  );
+  const measurementLabelText = getAutoWidthMeasurementLabelText();
+  const nextWidths = readMeasuredAutoWidths(
+    contentElement,
+    labelElement,
+    measurementLabelText
+  );
+  const widthsChanged =
+    autoWidths.value.content !== nextWidths.content ||
+    autoWidths.value.label !== nextWidths.label;
+  const shouldPreserveTransitionStart =
+    autoWidthReady.value === true &&
+    props.animateSize === true &&
+    shouldSnapAutoWidth.value === true &&
+    widthsChanged &&
+    autoWidths.value.content != null;
+  const transitionStartWidths: AutoWidthValues = {
+    content: autoWidths.value.content,
+    label: autoWidths.value.label,
   };
 
-  contentElement.style.width = 'auto';
-  contentElement.style.flexBasis = 'auto';
-  contentElement.style.flexGrow = '0';
-  contentElement.style.flexShrink = '1';
-  labelElement.style.width = 'auto';
-  labelElement.style.flexBasis = 'auto';
-  labelElement.style.flexGrow = '0';
-  labelElement.style.flexShrink = '1';
-
-  const nextWidths = {
-    content: readSnappedWidth(contentElement),
-    label: readSnappedWidth(labelElement),
-  };
-
-  contentElement.style.width = previousInlineValues.contentWidth;
-  contentElement.style.flexBasis = previousInlineValues.contentFlexBasis;
-  contentElement.style.flexGrow = previousInlineValues.contentFlexGrow;
-  contentElement.style.flexShrink = previousInlineValues.contentFlexShrink;
-  labelElement.style.width = previousInlineValues.labelWidth;
-  labelElement.style.flexBasis = previousInlineValues.labelFlexBasis;
-  labelElement.style.flexGrow = previousInlineValues.labelFlexGrow;
-  labelElement.style.flexShrink = previousInlineValues.labelFlexShrink;
+  if (shouldPreserveTransitionStart) {
+    restoreAutoWidthTransitionStart(
+      contentElement,
+      labelElement,
+      transitionStartWidths,
+      inlineStyleSnapshot
+    );
+  } else {
+    restoreAutoWidthInlineStyles(
+      contentElement,
+      labelElement,
+      inlineStyleSnapshot
+    );
+  }
 
   updateAutoWidths(nextWidths);
 }
 
 function scheduleAutoWidthMeasure() {
+  if (shouldSuppressAutoWidthMeasureForTextTransition()) {
+    clearAutoWidthRaf();
+    deferAutoWidthMeasure();
+    return;
+  }
+
+  if (autoWidthTransitioning.value) {
+    deferAutoWidthMeasure();
+    return;
+  }
+
   if (typeof window === 'undefined') {
     measureAutoWidth();
     return;
@@ -844,6 +1153,17 @@ function scheduleAutoWidthMeasure() {
   clearAutoWidthRaf();
   autoWidthRafId.value = window.requestAnimationFrame(() => {
     autoWidthRafId.value = null;
+
+    if (shouldSuppressAutoWidthMeasureForTextTransition()) {
+      deferAutoWidthMeasure();
+      return;
+    }
+
+    if (autoWidthTransitioning.value) {
+      deferAutoWidthMeasure();
+      return;
+    }
+
     measureAutoWidth();
   });
 }
@@ -852,37 +1172,27 @@ function updateDisplayedText(value: string | null) {
   displayedText.value = value;
 }
 
-function syncTextTransitionState(nextString = rawStringSlotValue.value) {
-  slotString.value = nextString;
-
-  if (props.textTransition !== true || nextString == null) {
-    clearTextTransitionRaf();
-    targetText.value = nextString;
-    updateDisplayedText(nextString);
-    return;
-  }
-
-  if (displayedText.value == null) {
-    targetText.value = nextString;
-    updateDisplayedText(nextString);
-    return;
-  }
+function getAutoWidthMeasurementLabelText() {
+  const state = autoTextTransitionState.value;
 
   if (
-    targetText.value === nextString &&
-    (textTransitionRafId.value !== null || displayedText.value === nextString)
+    props.textTransition !== true ||
+    shouldSnapAutoWidth.value !== true ||
+    state?.phase !== 'grow-sizing' ||
+    slotString.value == null
   ) {
-    return;
+    return null;
   }
 
-  if (typeof window === 'undefined') {
-    targetText.value = nextString;
-    updateDisplayedText(nextString);
-    return;
-  }
+  return state.targetText;
+}
 
+function startTextTransitionTo(
+  nextString: string,
+  onComplete?: () => void
+) {
   const transitionFrame: TextTransitionFrame = {
-    from: displayedText.value,
+    from: displayedText.value ?? '',
     to: nextString,
     startedAt:
       typeof window.performance?.now === 'function'
@@ -900,6 +1210,7 @@ function syncTextTransitionState(nextString = rawStringSlotValue.value) {
     if (progress >= 1) {
       textTransitionRafId.value = null;
       updateDisplayedText(transitionFrame.to);
+      onComplete?.();
       return;
     }
 
@@ -913,6 +1224,166 @@ function syncTextTransitionState(nextString = rawStringSlotValue.value) {
   textTransitionRafId.value = window.requestAnimationFrame(tick);
 }
 
+function finishAutoTextChoreography() {
+  autoTextTransitionState.value = null;
+  replayDeferredAutoWidthMeasure();
+}
+
+function completeGrowTextPhase(runId: number) {
+  const latestState = autoTextTransitionState.value;
+
+  if (
+    latestState == null ||
+    latestState.runId !== runId ||
+    latestState.phase !== 'grow-text'
+  ) {
+    return;
+  }
+
+  finishAutoTextChoreography();
+}
+
+function startGrowTextPhase(runId: number) {
+  const execute = () => {
+    const state = autoTextTransitionState.value;
+
+    if (state == null || state.runId !== runId || state.phase !== 'grow-sizing') {
+      return;
+    }
+
+    autoTextTransitionState.value = {
+      ...state,
+      phase: 'grow-text',
+    };
+
+    startTextTransitionTo(state.targetText, () => completeGrowTextPhase(runId));
+  };
+
+  if (typeof window === 'undefined') {
+    execute();
+    return;
+  }
+
+  clearTextTransitionDelayRaf();
+  textTransitionDelayRafId.value = window.requestAnimationFrame(() => {
+    textTransitionDelayRafId.value = null;
+    execute();
+  });
+}
+
+function completeShrinkTextPhase(runId: number) {
+  const latestState = autoTextTransitionState.value;
+
+  if (
+    latestState == null ||
+    latestState.runId !== runId ||
+    latestState.phase !== 'shrink-text'
+  ) {
+    return;
+  }
+
+  autoTextTransitionState.value = {
+    ...latestState,
+    phase: 'shrink-sizing',
+  };
+  updateAutoWidths(latestState.targetWidths);
+}
+
+function advanceAutoTextChoreographyAfterSizeWrite() {
+  const activeState = autoTextTransitionState.value;
+
+  if (activeState != null) {
+    if (activeState.phase === 'grow-sizing') {
+      startGrowTextPhase(activeState.runId);
+      return;
+    }
+
+    if (activeState.phase === 'shrink-sizing') {
+      finishAutoTextChoreography();
+      return;
+    }
+
+    return;
+  }
+
+  replayDeferredAutoWidthMeasure();
+}
+
+function syncTextTransitionState(nextString = rawStringSlotValue.value) {
+  slotString.value = nextString;
+
+  if (props.textTransition !== true || nextString == null) {
+    clearTextTransitionRaf();
+    clearAutoTextTransitionState();
+    targetText.value = nextString;
+    updateDisplayedText(nextString);
+    return;
+  }
+
+  if (displayedText.value == null) {
+    clearAutoTextTransitionState();
+    targetText.value = nextString;
+    updateDisplayedText(nextString);
+    return;
+  }
+
+  if (
+    targetText.value === nextString &&
+    (autoTextTransitionState.value?.targetText === nextString ||
+      textTransitionRafId.value !== null ||
+      displayedText.value === nextString)
+  ) {
+    return;
+  }
+
+  if (typeof window === 'undefined') {
+    clearAutoTextTransitionState();
+    targetText.value = nextString;
+    updateDisplayedText(nextString);
+    return;
+  }
+
+  clearTextTransitionRaf();
+  clearAutoTextTransitionState();
+
+  if (shouldSnapAutoWidth.value) {
+    targetText.value = nextString;
+    const targetWidths = getMeasuredAutoWidthsForText(nextString);
+    const flow = getAutoTextTransitionFlow(targetWidths);
+
+    if (targetWidths == null || flow == null) {
+      startTextTransitionTo(nextString, scheduleAutoWidthMeasure);
+      return;
+    }
+
+    if (flow === 'text-only') {
+      startTextTransitionTo(nextString);
+      return;
+    }
+
+    const runId = autoTextTransitionRunId.value + 1;
+
+    autoTextTransitionRunId.value = runId;
+    autoTextTransitionState.value = {
+      targetText: nextString,
+      phase: flow === 'grow-first' ? 'grow-sizing' : 'shrink-text',
+      runId,
+      targetWidths,
+    };
+
+    if (flow === 'grow-first') {
+      updateAutoWidths(targetWidths);
+      return;
+    }
+
+    startTextTransitionTo(nextString, () => completeShrinkTextPhase(runId));
+    return;
+  }
+
+  autoTextTransitionState.value = null;
+  startTextTransitionTo(nextString);
+}
+
 function refreshResizeObserver() {
   resizeObserverRef.value?.disconnect();
   resizeObserverRef.value = null;
@@ -922,8 +1393,13 @@ function refreshResizeObserver() {
   }
 
   const observer = new ResizeObserver(() => {
+    if (shouldSuppressAutoWidthMeasureForTextTransition()) {
+      deferAutoWidthMeasure();
+      return;
+    }
+
     if (autoWidthTransitioning.value) {
-      pendingAutoWidthMeasure.value = true;
+      deferAutoWidthMeasure();
       return;
     }
 
@@ -1106,6 +1582,7 @@ function handleKeyUp(event: KeyboardEvent) {
 }
 
 onMounted(() => {
+  lastAutoWidthContentSignature.value = autoWidthContentSignature.value;
   refreshResizeObserver();
   scheduleAutoWidthMeasure();
 
@@ -1133,13 +1610,22 @@ onMounted(() => {
 
 onUpdated(() => {
   if (shouldSnapAutoWidth.value) {
+    const nextSignature = autoWidthContentSignature.value;
+
     if (skipNextAutoWidthUpdatedMeasure.value) {
       skipNextAutoWidthUpdatedMeasure.value = false;
+      lastAutoWidthContentSignature.value = nextSignature;
       return;
     }
 
-    scheduleAutoWidthMeasure();
+    if (nextSignature !== lastAutoWidthContentSignature.value) {
+      lastAutoWidthContentSignature.value = nextSignature;
+      scheduleAutoWidthMeasure();
+    }
+    return;
   }
+
+  lastAutoWidthContentSignature.value = autoWidthContentSignature.value;
 });
 
 onBeforeUnmount(() => {
@@ -1148,6 +1634,7 @@ onBeforeUnmount(() => {
   cancelAutoWidthTransition();
   clearAutoWidthRaf();
   clearTextTransitionRaf();
+  clearTextTransitionDelayRaf();
   resizeObserverRef.value?.disconnect();
   resizeObserverRef.value = null;
 });
@@ -1192,6 +1679,7 @@ watch(
 
 watch(shouldSnapAutoWidth, async () => {
   await nextTick();
+  lastAutoWidthContentSignature.value = autoWidthContentSignature.value;
   refreshResizeObserver();
   scheduleAutoWidthMeasure();
 });

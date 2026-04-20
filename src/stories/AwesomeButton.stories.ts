@@ -149,6 +149,7 @@ export const AnimatedSizeChange: Story = {
 export const AnimatedAutoWidthChange: Story = {
   args: {
     size: null,
+    textTransition: true,
   },
   render: (args) => ({
     components: { AwesomeButton },
