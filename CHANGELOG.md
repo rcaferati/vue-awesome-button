@@ -1,5 +1,11 @@
 # Changelog
 
+## 1.0.1
+
+- added fixed-size width/height transitions for `AwesomeButton`
+- added `animateSize` as an opt-out prop for base, progress, and social buttons
+- added Storybook coverage for animated fixed-size changes
+
 ## 1.0.0
 
 - initial stable release of `@rcaferati/vue-awesome-button`

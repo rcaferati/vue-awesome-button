@@ -208,6 +208,41 @@ describe('AwesomeButton', () => {
     expect(wrapper.classes()).toContain('aws-btn--between');
     expect(wrapper.classes()).toContain('aws-btn--theme-blue');
     expect(wrapper.classes()).toContain('aws-btn--active');
+    expect(wrapper.classes()).toContain('aws-btn--animate-size');
+  });
+
+  it('allows fixed-size animation to be disabled', () => {
+    const wrapper = mount(AwesomeButton, {
+      props: {
+        animateSize: false,
+      },
+      slots: {
+        default: 'Instant size',
+      },
+    });
+
+    expect(wrapper.classes()).toContain('aws-btn--fixed');
+    expect(wrapper.classes()).not.toContain('aws-btn--animate-size');
+  });
+
+  it('keeps animated-size behavior while fixed size classes change', async () => {
+    const wrapper = mount(AwesomeButton, {
+      props: {
+        size: 'small',
+      },
+      slots: {
+        default: 'Resizable',
+      },
+    });
+
+    expect(wrapper.classes()).toContain('aws-btn--small');
+    expect(wrapper.classes()).toContain('aws-btn--animate-size');
+
+    await wrapper.setProps({ size: 'large' });
+
+    expect(wrapper.classes()).not.toContain('aws-btn--small');
+    expect(wrapper.classes()).toContain('aws-btn--large');
+    expect(wrapper.classes()).toContain('aws-btn--animate-size');
   });
 
   it('applies placeholder, disabled, and icon-only modifiers correctly', () => {

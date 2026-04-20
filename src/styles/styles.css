@@ -27,6 +27,8 @@
   --button-shadow-divisor: 2;
   --transform-speed: 0.15s;
   --button-release-speed: calc(var(--transform-speed) * 0.8);
+  --button-size-transition-speed: 125ms;
+  --button-size-transition-timing: cubic-bezier(0.3, 0.05, 0.2, 1);
   --loading-transition-speed: 6000ms;
   --loading-transition-end-speed: 300ms;
   --loading-transition-timing: ease-out;
@@ -152,6 +154,17 @@
   transform: translate3d(0, 0, 0);
   backface-visibility: hidden;
   transition: opacity 0.1s ease-out;
+}
+
+.aws-btn--fixed.aws-btn--animate-size {
+  transition:
+    opacity 0.1s ease-out,
+    width var(--button-size-transition-speed)
+      var(--button-size-transition-timing),
+    height var(--button-size-transition-speed)
+      var(--button-size-transition-timing),
+    min-height var(--button-size-transition-speed)
+      var(--button-size-transition-timing);
 }
 
 .aws-btn:hover {

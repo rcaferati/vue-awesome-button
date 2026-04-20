@@ -62,6 +62,20 @@ describe('AwesomeButtonSocial', () => {
     expect(wrapper.find('[data-test="before"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="after"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="extra"]').exists()).toBe(true);
+    expect(wrapper.classes()).toContain('aws-btn--animate-size');
+  });
+
+  it('forwards animateSize to the base button', () => {
+    const wrapper = mount(AwesomeButtonSocial, {
+      props: {
+        animateSize: false,
+      },
+      slots: {
+        default: 'Social',
+      },
+    });
+
+    expect(wrapper.classes()).not.toContain('aws-btn--animate-size');
   });
 
   it('renders the github auto-width icon and label through centered face slots', () => {

@@ -6,7 +6,7 @@
 - **`AwesomeButtonProgress`** - progress flow wrapper on top of `AwesomeButton`
 - **`AwesomeButtonSocial`** - social/share wrapper on top of `AwesomeButton`
 
-This README is updated for the current `1.0.0` release outputs, including base CSS, bundled theme CSS files, Vue slots, emits, and plugin registration.
+This README is updated for the current `1.0.1` release outputs, including base CSS, bundled theme CSS files, Vue slots, emits, and plugin registration.
 
 ---
 
@@ -209,6 +209,7 @@ import '@rcaferati/vue-awesome-button/themes/theme-blue.css';
 
 - `size="small" | "medium" | "large"` uses fixed button dimensions.
 - `:size="null"` uses content-driven auto width.
+- Fixed-size changes animate by default. Use `:animate-size="false"` to opt out.
 
 ```vue
 <script setup lang="ts">
@@ -230,6 +231,9 @@ import '@rcaferati/vue-awesome-button/themes/theme-blue.css';
     </AwesomeButton>
     <AwesomeButton theme="blue" :size="null" type="primary">
       Auto width grows with content
+    </AwesomeButton>
+    <AwesomeButton theme="blue" size="large" type="primary" :animate-size="false">
+      Instant fixed-size change
     </AwesomeButton>
   </div>
 </template>
@@ -291,6 +295,7 @@ const expanded = ref(false);
 | `disabled` | `boolean` | `false` | Disables interactions |
 | `visible` | `boolean` | `true` | Toggles visible state class |
 | `placeholder` | `boolean` | `false` | Renders placeholder/skeleton state |
+| `animateSize` | `boolean` | `true` | Animates fixed-size width/height changes; auto-width animation is not affected |
 | `textTransition` | `boolean` | `false` | Animates string-only label changes |
 | `between` | `boolean` | `false` | Uses `space-between` layout for content |
 | `ripple` | `boolean` | `false` | Enables ripple effect on successful activation |

@@ -69,6 +69,20 @@ describe('AwesomeButtonProgress', () => {
     expect(wrapper.find('[data-test="after"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="extra"]').exists()).toBe(true);
     expect(wrapper.find('.aws-btn__progress').exists()).toBe(true);
+    expect(wrapper.classes()).toContain('aws-btn--animate-size');
+  });
+
+  it('forwards animateSize to the base button', () => {
+    const wrapper = mount(AwesomeButtonProgress, {
+      props: {
+        animateSize: false,
+      },
+      slots: {
+        default: 'Progress',
+      },
+    });
+
+    expect(wrapper.classes()).not.toContain('aws-btn--animate-size');
   });
 
   it('locks active state immediately on pressed', async () => {
