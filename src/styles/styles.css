@@ -1,0 +1,756 @@
+.aws-btn {
+  --button-default-height: 44px;
+  --button-default-font-size: 14px;
+  --button-default-line-height: 24px;
+  --button-default-border-radius: 4px;
+  --button-default-placeholder-width: 120px;
+
+  --button-icon-width: 44px;
+  --button-icon-height: 44px;
+  --button-small-width: 88px;
+  --button-small-height: 44px;
+  --button-medium-width: 136px;
+  --button-medium-height: 44px;
+  --button-large-width: 192px;
+  --button-large-height: 44px;
+
+  --button-font-family: inherit;
+  --button-font-weight: 600;
+  --button-font-style: normal;
+  --button-letter-spacing: 0px;
+  --button-horizontal-padding: 16px;
+
+  --button-raise-level: 4px;
+  --button-pressed-level: 0px;
+  --button-hover-pressure: 1;
+  --button-shadow-color: rgba(0, 0, 0, 0.3);
+  --button-shadow-divisor: 2;
+  --transform-speed: 0.15s;
+  --button-release-speed: calc(var(--transform-speed) * 0.8);
+  --loading-transition-speed: 6000ms;
+  --loading-transition-end-speed: 300ms;
+  --loading-transition-timing: ease-out;
+
+  --button-primary-color: #1e88e5;
+  --button-primary-color-dark: #1565c0;
+  --button-primary-color-hover: #1976d2;
+  --button-primary-color-active: #1669bb;
+  --button-primary-foreground: #ffffff;
+  --button-primary-border: none;
+
+  --button-secondary-color: #f2f6f9;
+  --button-secondary-color-dark: #1565c0;
+  --button-secondary-color-hover: #dde7ef;
+  --button-secondary-color-active: #d2dee8;
+  --button-secondary-foreground: #1e88e5;
+  --button-secondary-border: 2px solid #1e88e5;
+
+  --button-link-color: #0e4f88;
+  --button-link-color-dark: #08385f;
+  --button-link-color-hover: #0c4678;
+  --button-link-color-active: #0a3f6c;
+  --button-link-foreground: #ffffff;
+  --button-link-border: none;
+
+  --button-danger-color: #c42e2e;
+  --button-danger-color-dark: #8f1e1e;
+  --button-danger-color-hover: #b22929;
+  --button-danger-color-active: #a12525;
+  --button-danger-foreground: #ffffff;
+  --button-danger-border: none;
+
+  --button-mail-color: #cfcfcf;
+  --button-mail-color-dark: #9c9c9c;
+  --button-facebook-color: #4868ad;
+  --button-facebook-color-dark: #31508a;
+  --button-messenger-color: #3186f6;
+  --button-messenger-color-dark: #0c60d0;
+  --button-twitter-color: #00aced;
+  --button-twitter-color-dark: #0074a0;
+  --button-linkedin-color: #0077b5;
+  --button-linkedin-color-dark: #00456b;
+  --button-whatsapp-color: #25d366;
+  --button-whatsapp-color-dark: #199249;
+  --button-github-color: #25292e;
+  --button-github-color-dark: #030303;
+  --button-reddit-color: #fc461e;
+  --button-reddit-color-dark: #cb2703;
+  --button-pinterest-color: #bd091c;
+  --button-pinterest-color-dark: #740611;
+  --button-gplus-color: #ce5b4e;
+  --button-gplus-color-dark: #a2392d;
+  --button-youtube-color: #cc181e;
+  --button-youtube-color-dark: #871014;
+  --button-instagram-radial-color: radial-gradient(
+    circle at 25% 110%,
+    #fdf497 0%,
+    #fdf497 5%,
+    #fd5949 45%,
+    #d6249f 60%,
+    #285aeb 90%
+  );
+  --button-instagram-radial-color-dark: radial-gradient(
+    circle at 25% 110%,
+    #b9a800 0%,
+    #938500 5%,
+    #b10f00 45%,
+    #8c0061 60%,
+    #002ca9 90%
+  );
+
+  --button-disabled-color: #afafaf;
+  --button-disabled-color-dark: #888888;
+  --button-disabled-color-hover: #afafaf;
+  --button-disabled-color-active: #afafaf;
+  --button-disabled-foreground: rgba(255, 255, 255, 0.75);
+  --button-disabled-border: none;
+
+  --button-placeholder-color: #afafaf;
+  --button-placeholder-color-dark: #888888;
+  --button-placeholder-color-light: #989898;
+  --button-placeholder-color-hover: #afafaf;
+  --button-placeholder-color-active: #afafaf;
+  --button-placeholder-foreground: rgba(255, 255, 255, 0.75);
+  --button-placeholder-border: none;
+
+  --button-current-height: var(--button-default-height);
+  --button-current-width: auto;
+  --button-current-color: var(--button-primary-color);
+  --button-current-color-dark: var(--button-primary-color-dark);
+  --button-current-color-hover: var(--button-primary-color-hover);
+  --button-current-color-active: var(--button-primary-color-active);
+  --button-current-foreground: var(--button-primary-foreground);
+  --button-current-border: var(--button-primary-border);
+
+  box-sizing: border-box;
+  display: inline-block;
+  vertical-align: middle;
+  position: relative;
+  z-index: 1;
+  min-height: calc(var(--button-current-height) + var(--button-raise-level));
+  height: calc(var(--button-current-height) + var(--button-raise-level));
+  width: var(--button-current-width);
+  padding: 0;
+  margin: 0;
+  border: none;
+  background: transparent;
+  font-size: var(--button-default-font-size);
+  line-height: var(--button-default-line-height);
+  font-family: var(--button-font-family);
+  font-weight: var(--button-font-weight);
+  font-style: var(--button-font-style);
+  letter-spacing: var(--button-letter-spacing);
+  text-decoration: none;
+  text-align: center;
+  text-rendering: auto;
+  color: inherit;
+  opacity: 0;
+  cursor: pointer;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+  -webkit-tap-highlight-color: transparent;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  transition: opacity 0.1s ease-out;
+}
+
+.aws-btn:hover {
+  text-decoration: none;
+}
+
+.aws-btn:focus {
+  outline: none;
+}
+
+.aws-btn:focus-visible .aws-btn__content {
+  outline: 2px solid rgba(30, 136, 229, 0.35);
+  outline-offset: 2px;
+}
+
+button.aws-btn {
+  appearance: none;
+}
+
+button.aws-btn .aws-btn__wrapper {
+  margin-top: calc(var(--button-raise-level) * -1);
+}
+
+.aws-btn::before {
+  content: '';
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  bottom: calc(0px - (var(--button-raise-level) / var(--button-shadow-divisor)));
+  height: calc(100% - (var(--button-raise-level) * var(--button-shadow-divisor)));
+  border-radius: var(--button-default-border-radius);
+  background: var(--button-shadow-color);
+  transform: skewY(0) translate3d(0, 0, 0);
+  transition:
+    transform var(--button-release-speed) ease-out,
+    background var(--button-release-speed) ease-out;
+}
+
+.aws-btn__wrapper {
+  position: relative;
+  display: flex;
+  align-items: stretch;
+  width: 100%;
+  height: calc(100% - var(--button-raise-level));
+  font-family: var(--button-font-family);
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  transform-style: preserve-3d;
+}
+
+.aws-btn__wrapper::before {
+  content: '';
+  position: absolute;
+  inset: auto 0 calc(var(--button-raise-level) * -1) 0;
+  top: auto;
+  height: 100%;
+  border-radius: var(--button-default-border-radius);
+  background: var(--button-current-color-dark);
+  z-index: 1;
+  transition:
+    transform var(--transform-speed) ease-out,
+    background-color var(--transform-speed) ease-out;
+}
+
+.aws-btn__content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: var(--button-current-height);
+  padding: 0 var(--button-horizontal-padding);
+  box-sizing: border-box;
+  border-radius: var(--button-default-border-radius);
+  border: var(--button-current-border);
+  background: var(--button-current-color);
+  color: var(--button-current-foreground);
+  overflow: hidden;
+  text-indent: 0;
+  text-decoration: none;
+  transform: translate3d(0, 0, 0);
+  backface-visibility: hidden;
+  transform-style: flat;
+  transition:
+    border var(--transform-speed) ease-out,
+    transform var(--transform-speed) ease-out,
+    background-color var(--transform-speed) ease-out,
+    color var(--transform-speed) ease-out;
+}
+
+.aws-btn__slot {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+}
+
+.aws-btn__slot--before {
+  margin-right: 4px;
+}
+
+.aws-btn__slot--after {
+  margin-left: 4px;
+}
+
+.aws-btn__label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  flex: 0 1 auto;
+  text-decoration: none;
+}
+
+.aws-btn__slot > svg,
+.aws-btn__label > svg:only-child {
+  display: block;
+  margin: 0;
+}
+
+.aws-btn__extra {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.aws-btn--visible {
+  opacity: 1;
+}
+
+.aws-btn--between .aws-btn__content {
+  justify-content: space-between;
+}
+
+.aws-btn--primary {
+  --button-current-color: var(--button-primary-color);
+  --button-current-color-dark: var(--button-primary-color-dark);
+  --button-current-color-hover: var(--button-primary-color-hover);
+  --button-current-color-active: var(--button-primary-color-active);
+  --button-current-foreground: var(--button-primary-foreground);
+  --button-current-border: var(--button-primary-border);
+}
+
+.aws-btn--secondary {
+  --button-current-color: var(--button-secondary-color);
+  --button-current-color-dark: var(--button-secondary-color-dark);
+  --button-current-color-hover: var(--button-secondary-color-hover);
+  --button-current-color-active: var(--button-secondary-color-active);
+  --button-current-foreground: var(--button-secondary-foreground);
+  --button-current-border: var(--button-secondary-border);
+}
+
+.aws-btn--danger {
+  --button-current-color: var(--button-danger-color);
+  --button-current-color-dark: var(--button-danger-color-dark);
+  --button-current-color-hover: var(--button-danger-color-hover);
+  --button-current-color-active: var(--button-danger-color-active);
+  --button-current-foreground: var(--button-danger-foreground);
+  --button-current-border: var(--button-danger-border);
+}
+
+.aws-btn--link {
+  --button-current-color: var(--button-link-color);
+  --button-current-color-dark: var(--button-link-color-dark);
+  --button-current-color-hover: var(--button-link-color-hover);
+  --button-current-color-active: var(--button-link-color-active);
+  --button-current-foreground: var(--button-link-foreground);
+  --button-current-border: var(--button-link-border);
+}
+
+.aws-btn--facebook,
+.aws-btn--messenger,
+.aws-btn--twitter,
+.aws-btn--linkedin,
+.aws-btn--whatsapp,
+.aws-btn--github,
+.aws-btn--reddit,
+.aws-btn--pinterest,
+.aws-btn--gplus,
+.aws-btn--youtube,
+.aws-btn--mail,
+.aws-btn--instagram {
+  --button-current-foreground: #ffffff;
+  --button-current-border: none;
+}
+
+.aws-btn--facebook {
+  --button-current-color: var(--button-facebook-color);
+  --button-current-color-dark: var(--button-facebook-color-dark);
+  --button-current-color-hover: var(--button-facebook-color);
+  --button-current-color-active: var(--button-facebook-color-dark);
+}
+
+.aws-btn--messenger {
+  --button-current-color: var(--button-messenger-color);
+  --button-current-color-dark: var(--button-messenger-color-dark);
+  --button-current-color-hover: var(--button-messenger-color);
+  --button-current-color-active: var(--button-messenger-color-dark);
+}
+
+.aws-btn--twitter {
+  --button-current-color: var(--button-twitter-color);
+  --button-current-color-dark: var(--button-twitter-color-dark);
+  --button-current-color-hover: var(--button-twitter-color);
+  --button-current-color-active: var(--button-twitter-color-dark);
+}
+
+.aws-btn--linkedin {
+  --button-current-color: var(--button-linkedin-color);
+  --button-current-color-dark: var(--button-linkedin-color-dark);
+  --button-current-color-hover: var(--button-linkedin-color);
+  --button-current-color-active: var(--button-linkedin-color-dark);
+}
+
+.aws-btn--whatsapp {
+  --button-current-color: var(--button-whatsapp-color);
+  --button-current-color-dark: var(--button-whatsapp-color-dark);
+  --button-current-color-hover: var(--button-whatsapp-color);
+  --button-current-color-active: var(--button-whatsapp-color-dark);
+}
+
+.aws-btn--github {
+  --button-current-color: var(--button-github-color);
+  --button-current-color-dark: var(--button-github-color-dark);
+  --button-current-color-hover: var(--button-github-color);
+  --button-current-color-active: var(--button-github-color-dark);
+}
+
+.aws-btn--reddit {
+  --button-current-color: var(--button-reddit-color);
+  --button-current-color-dark: var(--button-reddit-color-dark);
+  --button-current-color-hover: var(--button-reddit-color);
+  --button-current-color-active: var(--button-reddit-color-dark);
+}
+
+.aws-btn--pinterest {
+  --button-current-color: var(--button-pinterest-color);
+  --button-current-color-dark: var(--button-pinterest-color-dark);
+  --button-current-color-hover: var(--button-pinterest-color);
+  --button-current-color-active: var(--button-pinterest-color-dark);
+}
+
+.aws-btn--gplus {
+  --button-current-color: var(--button-gplus-color);
+  --button-current-color-dark: var(--button-gplus-color-dark);
+  --button-current-color-hover: var(--button-gplus-color);
+  --button-current-color-active: var(--button-gplus-color-dark);
+}
+
+.aws-btn--youtube {
+  --button-current-color: var(--button-youtube-color);
+  --button-current-color-dark: var(--button-youtube-color-dark);
+  --button-current-color-hover: var(--button-youtube-color);
+  --button-current-color-active: var(--button-youtube-color-dark);
+}
+
+.aws-btn--mail {
+  --button-current-color: var(--button-mail-color);
+  --button-current-color-dark: var(--button-mail-color-dark);
+  --button-current-color-hover: var(--button-mail-color);
+  --button-current-color-active: var(--button-mail-color-dark);
+}
+
+.aws-btn--instagram {
+  --button-current-color: var(--button-instagram-radial-color);
+  --button-current-color-dark: var(--button-instagram-radial-color-dark);
+  --button-current-color-hover: var(--button-instagram-radial-color);
+  --button-current-color-active: var(--button-instagram-radial-color-dark);
+}
+
+.aws-btn--disabled,
+.aws-btn--placeholder {
+  cursor: not-allowed;
+}
+
+.aws-btn--disabled {
+  --button-current-color: var(--button-disabled-color);
+  --button-current-color-dark: var(--button-disabled-color-dark);
+  --button-current-color-hover: var(--button-disabled-color-hover);
+  --button-current-color-active: var(--button-disabled-color-active);
+  --button-current-foreground: var(--button-disabled-foreground);
+  --button-current-border: var(--button-disabled-border);
+}
+
+.aws-btn--placeholder {
+  --button-current-color: var(--button-placeholder-color);
+  --button-current-color-dark: var(--button-placeholder-color-dark);
+  --button-current-color-hover: var(--button-placeholder-color-hover);
+  --button-current-color-active: var(--button-placeholder-color-active);
+  --button-current-foreground: var(--button-placeholder-foreground);
+  --button-current-border: var(--button-placeholder-border);
+  --button-current-width: var(--button-default-placeholder-width);
+}
+
+.aws-btn--placeholder .aws-btn__label {
+  color: transparent;
+}
+
+.aws-btn--placeholder .aws-btn__label::before {
+  content: '';
+  display: block;
+  width: 100%;
+  height: 40%;
+  min-height: 12px;
+  border-radius: 2px;
+  background: var(--button-placeholder-color-light);
+}
+
+.aws-btn--fixed .aws-btn__label {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  text-align: left;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 0 1 auto;
+}
+
+.aws-btn--auto {
+  width: auto;
+  --button-current-width: auto;
+}
+
+.aws-btn--auto .aws-btn__label {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: none;
+  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.aws-btn--small {
+  --button-current-width: var(--button-small-width);
+  --button-current-height: var(--button-small-height);
+}
+
+.aws-btn--small .aws-btn__content {
+  padding-left: min(var(--button-horizontal-padding), 14px);
+  padding-right: min(var(--button-horizontal-padding), 14px);
+}
+
+.aws-btn--medium {
+  --button-current-width: var(--button-medium-width);
+  --button-current-height: var(--button-medium-height);
+}
+
+.aws-btn--large {
+  --button-current-width: var(--button-large-width);
+  --button-current-height: var(--button-large-height);
+}
+
+.aws-btn--icon {
+  --button-current-width: var(--button-icon-width);
+  --button-current-height: var(--button-icon-height);
+}
+
+.aws-btn--icon .aws-btn__content {
+  padding: 0;
+  min-width: var(--button-icon-width);
+}
+
+.aws-btn--icon .aws-btn__slot--before,
+.aws-btn--icon .aws-btn__slot--after {
+  margin: 0;
+}
+
+.aws-btn--left::before {
+  transform: skewY(calc(1deg * var(--button-hover-pressure)))
+    translate3d(0, calc(-1px * var(--button-hover-pressure) / 2), 0);
+}
+
+.aws-btn--left .aws-btn__content {
+  transform: skewY(calc(-1deg * var(--button-hover-pressure)));
+}
+
+.aws-btn--right::before {
+  transform: skewY(calc(-1deg * var(--button-hover-pressure)))
+    translate3d(0, calc(-1px * var(--button-hover-pressure) / 2), 0);
+}
+
+.aws-btn--right .aws-btn__content {
+  transform: skewY(calc(1deg * var(--button-hover-pressure)));
+}
+
+.aws-btn--middle::before {
+  transform: translate3d(0, calc(-1px * var(--button-hover-pressure)), 0);
+}
+
+.aws-btn--middle .aws-btn__content {
+  transform: translate3d(0, calc(1px * var(--button-hover-pressure)), 0);
+}
+
+.aws-btn--active::before {
+  will-change: transform;
+  transform: translate3d(
+    0,
+    calc((var(--button-raise-level) - var(--button-pressed-level)) * -1),
+    0
+  );
+}
+
+.aws-btn--active .aws-btn__content {
+  will-change: transform;
+  background: var(--button-current-color-active);
+  transition:
+    transform var(--button-release-speed) ease-out,
+    background-color var(--button-release-speed) ease-out,
+    color var(--button-release-speed) ease-out;
+  transform: translate3d(
+    0,
+    calc(var(--button-raise-level) - var(--button-pressed-level)),
+    0
+  );
+}
+
+.aws-btn--releasing::before {
+  will-change: transform;
+  transition:
+    transform var(--button-release-speed) ease-out,
+    background var(--button-release-speed) ease-out;
+}
+
+.aws-btn--releasing .aws-btn__content {
+  will-change: transform;
+  transition:
+    transform var(--button-release-speed) ease-out,
+    background-color var(--button-release-speed) ease-out,
+    color var(--button-release-speed) ease-out;
+}
+
+.aws-btn:not(.aws-btn--disabled):not(.aws-btn--placeholder):hover .aws-btn__content {
+  background: var(--button-current-color-hover);
+}
+
+.aws-btn--progress.aws-btn--start:not(.aws-btn--end):not(.aws-btn--disabled):not(
+    .aws-btn--placeholder
+  ):hover
+  .aws-btn__content {
+  background: var(--button-current-color-active);
+}
+
+.aws-btn__bubble {
+  position: absolute;
+  visibility: hidden;
+  top: 0;
+  left: 0;
+  width: 0;
+  height: 0;
+  border-radius: 50%;
+  background: rgba(0, 0, 0, 0.12);
+  opacity: 0;
+  transform: scale(0.1);
+  pointer-events: none;
+  animation: bubble-ping calc(var(--transform-speed) * 3.5)
+    cubic-bezier(0.5, 0, 0.6, 0.4) 0.05s forwards;
+}
+
+.aws-btn--progress .aws-btn__extra {
+  top: var(--button-raise-level);
+  right: 0;
+  bottom: calc(var(--button-raise-level) * -1);
+  left: 0;
+  display: flex;
+}
+
+.aws-btn--progress .aws-btn__progress {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: var(--button-default-border-radius);
+  text-indent: 0;
+  transition:
+    border var(--transform-speed) ease-out,
+    transform var(--transform-speed) ease-out,
+    background-color var(--transform-speed) ease-out,
+    color var(--transform-speed) ease-out;
+}
+
+.aws-btn--progress .aws-btn__progress::before,
+.aws-btn--progress .aws-btn__progress::after {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  color: rgba(255, 255, 255, 0.65);
+  opacity: 0;
+  transition:
+    transform var(--transform-speed) ease-out 0.05s,
+    opacity calc(var(--transform-speed) * 0.75) ease-out 0.05s;
+}
+
+.aws-btn--progress .aws-btn__progress::before {
+  content: attr(data-loading);
+  transform: translate3d(0, 100%, 0);
+}
+
+.aws-btn--progress .aws-btn__progress::after {
+  content: attr(data-status);
+  transform: translate3d(0, -100%, 0);
+}
+
+.aws-btn--progress .aws-btn__content > * {
+  transition: opacity 200ms ease-out;
+}
+
+.aws-btn--progress .aws-btn__content::after {
+  position: absolute;
+  inset: 0;
+  display: none;
+  width: 100%;
+  content: '';
+  background-color: rgba(0, 0, 0, 0.15);
+  transform: translate3d(-100%, 0, 0);
+}
+
+.aws-btn--progress.aws-btn--active .aws-btn__content > * {
+  opacity: 0;
+}
+
+.aws-btn--progress.aws-btn--active .aws-btn__progress::before,
+.aws-btn--progress.aws-btn--active .aws-btn__progress::after {
+  display: flex;
+}
+
+.aws-btn--progress.aws-btn--active:not(.aws-btn--progress-bar-hidden)
+  .aws-btn__content::after {
+  display: block;
+}
+
+.aws-btn--start .aws-btn__progress::before {
+  opacity: 1;
+  transform: translate3d(0, 50%, 0);
+}
+
+.aws-btn--start:not(.aws-btn--progress-bar-hidden) .aws-btn__content::after {
+  transition: transform var(--loading-transition-speed) ease-out;
+  transform: translate3d(-15%, 0, 0);
+}
+
+.aws-btn--errored:not(.aws-btn--progress-bar-hidden) .aws-btn__content::after {
+  background-color: rgba(255, 0, 0, 0.75);
+}
+
+.aws-btn--end:not(.aws-btn--progress-bar-hidden) .aws-btn__content::after {
+  transition:
+    transform var(--loading-transition-end-speed)
+      var(--loading-transition-timing);
+  transform: translate3d(0, 0, 0);
+}
+
+.aws-btn--end .aws-btn__progress::after {
+  opacity: 1;
+  transform: translate3d(0, -50%, 0);
+}
+
+.aws-btn--end .aws-btn__progress::before {
+  opacity: 0;
+  transform: translate3d(0, 50%, 0);
+}
+
+@keyframes placeholder {
+  0% {
+    transform: translateX(-110%);
+  }
+  25% {
+    transform: translateX(0%);
+  }
+  50% {
+    transform: translateX(110%);
+  }
+  75% {
+    transform: translateX(0%);
+  }
+  100% {
+    transform: translateX(-110%);
+  }
+}
+
+@keyframes bubble-ping {
+  0% {
+    visibility: visible;
+    opacity: 0.8;
+    transform: scale(0.1);
+  }
+  100% {
+    visibility: visible;
+    opacity: 0;
+    transform: scale(2);
+  }
+}
