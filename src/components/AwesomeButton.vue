@@ -41,6 +41,7 @@ const DEFAULT_AUTO_WIDTHS = Object.freeze({
 });
 const RELEASE_FALLBACK_MS = 220;
 const RIPPLE_FALLBACK_MS = 420;
+const AUTO_WIDTH_TRANSITION_FALLBACK_MS = 175;
 const TEXT_TRANSITION_DURATION = 320;
 const TEXT_TRANSITION_SETTLE_START = 0.45;
 const UPPERCASE_POOL = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -85,6 +86,11 @@ const autoWidths = ref({
   content: null as number | null,
   label: null as number | null,
 });
+const autoWidthReady = ref(false);
+const autoWidthTransitioning = ref(false);
+const pendingAutoWidthMeasure = ref(false);
+const skipNextAutoWidthUpdatedMeasure = ref(false);
+const autoWidthTransitionRunId = ref(0);
 const activePointerId = ref<number | null>(null);
 const pointerStartY = ref<number | null>(null);
 const releaseRunId = ref(0);
@@ -96,6 +102,7 @@ const displayedText = ref<string | null>(null);
 const targetText = ref<string | null>(null);
 
 let releaseCleanup: (() => void) | null = null;
+let autoWidthTransitionCleanup: (() => void) | null = null;
 let fontsReadyCancelled = false;
 
 function isMeaningfulVNode(node: VNode | null | undefined): boolean {
@@ -209,6 +216,15 @@ function readSnappedWidth(element: HTMLElement | null): number | null {
   }
 
   return null;
+}
+
+function isTransformTransitionEnd(event: Event) {
+  return (event as TransitionEvent).propertyName === 'transform';
+}
+
+function isAutoWidthTransitionEnd(event: Event) {
+  const propertyName = (event as TransitionEvent).propertyName;
+  return propertyName === 'width' || propertyName === 'flex-basis';
 }
 
 function getTransitionCharacterPool(character: string): string {
@@ -335,6 +351,10 @@ const rootClassName = computed(() => [
   props.size ? `aws-btn--${props.size}` : null,
   props.visible ? 'aws-btn--visible' : null,
   props.animateSize ? 'aws-btn--animate-size' : null,
+  props.animateSize && shouldSnapAutoWidth.value && autoWidthReady.value
+    ? 'aws-btn--auto-size-ready'
+    : null,
+  autoWidthTransitioning.value ? 'aws-btn--auto-size-transitioning' : null,
   props.between ? 'aws-btn--between' : null,
   isPlaceholder.value ? 'aws-btn--placeholder' : null,
   isDisabled.value ? 'aws-btn--disabled' : null,
@@ -379,10 +399,12 @@ const contentInlineStyle = computed(() => {
     return undefined;
   }
 
-  return {
-    width: `${autoWidths.value.content}px`,
-    flex: `0 0 ${autoWidths.value.content}px`,
-  };
+  return [
+    `width: ${autoWidths.value.content}px`,
+    `flex-basis: ${autoWidths.value.content}px`,
+    'flex-grow: 0',
+    'flex-shrink: 0',
+  ].join('; ');
 });
 
 const labelInlineStyle = computed(() => {
@@ -390,11 +412,12 @@ const labelInlineStyle = computed(() => {
     return undefined;
   }
 
-  return {
-    width: `${autoWidths.value.label}px`,
-    flexBasis: `${autoWidths.value.label}px`,
-    flex: `0 0 ${autoWidths.value.label}px`,
-  };
+  return [
+    `width: ${autoWidths.value.label}px`,
+    `flex-basis: ${autoWidths.value.label}px`,
+    'flex-grow: 0',
+    'flex-shrink: 0',
+  ].join('; ');
 });
 const shouldRenderAnimatedText = computed(
   () => props.textTransition === true && slotString.value != null
@@ -412,6 +435,24 @@ function clearAutoWidthRaf() {
     window.cancelAnimationFrame(autoWidthRafId.value);
     autoWidthRafId.value = null;
   }
+}
+
+function cancelAutoWidthTransition() {
+  autoWidthTransitionRunId.value += 1;
+
+  if (autoWidthTransitionCleanup) {
+    autoWidthTransitionCleanup();
+    autoWidthTransitionCleanup = null;
+  }
+
+  autoWidthTransitioning.value = false;
+  pendingAutoWidthMeasure.value = false;
+  skipNextAutoWidthUpdatedMeasure.value = false;
+}
+
+function resetAutoWidthState() {
+  cancelAutoWidthTransition();
+  autoWidthReady.value = false;
 }
 
 function clearTextTransitionRaf() {
@@ -450,6 +491,10 @@ function scheduleReleaseFinalize() {
 
   const handleTransitionEnd = (event: Event) => {
     if (event.target !== contentElement) {
+      return;
+    }
+
+    if (!isTransformTransitionEnd(event)) {
       return;
     }
 
@@ -619,8 +664,111 @@ function pressOut(
   clearPress();
 }
 
+function finalizeAutoWidthTransition(runId: number) {
+  if (autoWidthTransitionRunId.value !== runId) {
+    return;
+  }
+
+  if (autoWidthTransitionCleanup) {
+    autoWidthTransitionCleanup();
+    autoWidthTransitionCleanup = null;
+  }
+
+  const shouldRunPendingMeasure = pendingAutoWidthMeasure.value;
+
+  pendingAutoWidthMeasure.value = false;
+  skipNextAutoWidthUpdatedMeasure.value = true;
+  autoWidthTransitioning.value = false;
+
+  if (shouldRunPendingMeasure) {
+    scheduleAutoWidthMeasure();
+  }
+}
+
+function startAutoWidthTransition() {
+  if (
+    props.animateSize !== true ||
+    autoWidthReady.value !== true ||
+    !shouldSnapAutoWidth.value ||
+    typeof window === 'undefined'
+  ) {
+    return;
+  }
+
+  autoWidthTransitionRunId.value += 1;
+  const runId = autoWidthTransitionRunId.value;
+  const contentElement = contentRef.value;
+  const labelElement = labelRef.value;
+
+  autoWidthTransitionCleanup?.();
+  autoWidthTransitionCleanup = null;
+  autoWidthTransitioning.value = true;
+
+  const cleanup = () => {
+    contentElement?.removeEventListener('transitionend', handleTransitionEnd);
+    labelElement?.removeEventListener('transitionend', handleTransitionEnd);
+    window.clearTimeout(timeoutId);
+    if (autoWidthTransitionCleanup === cleanup) {
+      autoWidthTransitionCleanup = null;
+    }
+  };
+
+  const finish = () => {
+    cleanup();
+    finalizeAutoWidthTransition(runId);
+  };
+
+  const handleTransitionEnd = (event: Event) => {
+    if (event.target !== contentElement && event.target !== labelElement) {
+      return;
+    }
+
+    if (!isAutoWidthTransitionEnd(event)) {
+      return;
+    }
+
+    finish();
+  };
+
+  const timeoutId = window.setTimeout(
+    finish,
+    AUTO_WIDTH_TRANSITION_FALLBACK_MS
+  );
+
+  contentElement?.addEventListener('transitionend', handleTransitionEnd);
+  labelElement?.addEventListener('transitionend', handleTransitionEnd);
+  autoWidthTransitionCleanup = cleanup;
+}
+
+function updateAutoWidths(nextWidths: {
+  content: number | null;
+  label: number | null;
+}) {
+  const widthsChanged =
+    autoWidths.value.content !== nextWidths.content ||
+    autoWidths.value.label !== nextWidths.label;
+
+  if (!widthsChanged) {
+    return;
+  }
+
+  const shouldTransition =
+    autoWidthReady.value === true &&
+    props.animateSize === true &&
+    shouldSnapAutoWidth.value === true &&
+    autoWidths.value.content != null;
+
+  if (shouldTransition) {
+    startAutoWidthTransition();
+  }
+
+  autoWidths.value = nextWidths;
+  autoWidthReady.value = nextWidths.content != null;
+}
+
 function measureAutoWidth() {
   if (!shouldSnapAutoWidth.value) {
+    resetAutoWidthState();
     if (
       autoWidths.value.content !== DEFAULT_AUTO_WIDTHS.content ||
       autoWidths.value.label !== DEFAULT_AUTO_WIDTHS.label
@@ -643,33 +791,32 @@ function measureAutoWidth() {
   if (!labelElement) {
     const contentWidth = readSnappedWidth(contentElement);
 
-    if (
-      autoWidths.value.content === contentWidth &&
-      autoWidths.value.label === null
-    ) {
-      return;
-    }
-
-    autoWidths.value = {
+    updateAutoWidths({
       content: contentWidth,
       label: null,
-    };
+    });
     return;
   }
 
   const previousInlineValues = {
     contentWidth: contentElement.style.width,
-    contentFlex: contentElement.style.flex,
+    contentFlexBasis: contentElement.style.flexBasis,
+    contentFlexGrow: contentElement.style.flexGrow,
+    contentFlexShrink: contentElement.style.flexShrink,
     labelWidth: labelElement.style.width,
     labelFlexBasis: labelElement.style.flexBasis,
-    labelFlex: labelElement.style.flex,
+    labelFlexGrow: labelElement.style.flexGrow,
+    labelFlexShrink: labelElement.style.flexShrink,
   };
 
   contentElement.style.width = 'auto';
-  contentElement.style.flex = '0 1 auto';
+  contentElement.style.flexBasis = 'auto';
+  contentElement.style.flexGrow = '0';
+  contentElement.style.flexShrink = '1';
   labelElement.style.width = 'auto';
   labelElement.style.flexBasis = 'auto';
-  labelElement.style.flex = '0 1 auto';
+  labelElement.style.flexGrow = '0';
+  labelElement.style.flexShrink = '1';
 
   const nextWidths = {
     content: readSnappedWidth(contentElement),
@@ -677,19 +824,15 @@ function measureAutoWidth() {
   };
 
   contentElement.style.width = previousInlineValues.contentWidth;
-  contentElement.style.flex = previousInlineValues.contentFlex;
+  contentElement.style.flexBasis = previousInlineValues.contentFlexBasis;
+  contentElement.style.flexGrow = previousInlineValues.contentFlexGrow;
+  contentElement.style.flexShrink = previousInlineValues.contentFlexShrink;
   labelElement.style.width = previousInlineValues.labelWidth;
   labelElement.style.flexBasis = previousInlineValues.labelFlexBasis;
-  labelElement.style.flex = previousInlineValues.labelFlex;
+  labelElement.style.flexGrow = previousInlineValues.labelFlexGrow;
+  labelElement.style.flexShrink = previousInlineValues.labelFlexShrink;
 
-  if (
-    autoWidths.value.content === nextWidths.content &&
-    autoWidths.value.label === nextWidths.label
-  ) {
-    return;
-  }
-
-  autoWidths.value = nextWidths;
+  updateAutoWidths(nextWidths);
 }
 
 function scheduleAutoWidthMeasure() {
@@ -779,6 +922,11 @@ function refreshResizeObserver() {
   }
 
   const observer = new ResizeObserver(() => {
+    if (autoWidthTransitioning.value) {
+      pendingAutoWidthMeasure.value = true;
+      return;
+    }
+
     scheduleAutoWidthMeasure();
   });
 
@@ -985,6 +1133,11 @@ onMounted(() => {
 
 onUpdated(() => {
   if (shouldSnapAutoWidth.value) {
+    if (skipNextAutoWidthUpdatedMeasure.value) {
+      skipNextAutoWidthUpdatedMeasure.value = false;
+      return;
+    }
+
     scheduleAutoWidthMeasure();
   }
 });
@@ -992,6 +1145,7 @@ onUpdated(() => {
 onBeforeUnmount(() => {
   fontsReadyCancelled = true;
   cancelPendingRelease();
+  cancelAutoWidthTransition();
   clearAutoWidthRaf();
   clearTextTransitionRaf();
   resizeObserverRef.value?.disconnect();

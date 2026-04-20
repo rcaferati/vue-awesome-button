@@ -504,6 +504,28 @@ button.aws-btn .aws-btn__wrapper {
   text-overflow: clip;
 }
 
+.aws-btn--auto.aws-btn--animate-size.aws-btn--auto-size-ready
+  .aws-btn__content {
+  transition:
+    border var(--transform-speed) ease-out,
+    transform var(--transform-speed) ease-out,
+    background-color var(--transform-speed) ease-out,
+    color var(--transform-speed) ease-out,
+    width var(--button-size-transition-speed)
+      var(--button-size-transition-timing),
+    flex-basis var(--button-size-transition-speed)
+      var(--button-size-transition-timing);
+}
+
+.aws-btn--auto.aws-btn--animate-size.aws-btn--auto-size-ready
+  .aws-btn__label {
+  transition:
+    width var(--button-size-transition-speed)
+      var(--button-size-transition-timing),
+    flex-basis var(--button-size-transition-speed)
+      var(--button-size-transition-timing);
+}
+
 .aws-btn--small {
   --button-current-width: var(--button-small-width);
   --button-current-height: var(--button-small-height);

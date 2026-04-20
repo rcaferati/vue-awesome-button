@@ -4,10 +4,24 @@ import { type Mock, vi } from 'vitest';
 import AwesomeButtonProgress from '../components/AwesomeButtonProgress.vue';
 import type { ProgressNext } from '../types';
 
-async function dispatchContentTransitionEnd(wrapper: VueWrapper<any>) {
+function createTransitionEnd(propertyName = 'transform') {
+  const event = new Event('transitionend', { bubbles: true });
+
+  Object.defineProperty(event, 'propertyName', {
+    configurable: true,
+    value: propertyName,
+  });
+
+  return event;
+}
+
+async function dispatchContentTransitionEnd(
+  wrapper: VueWrapper<any>,
+  propertyName = 'transform'
+) {
   wrapper
     .get('.aws-btn__content')
-    .element.dispatchEvent(new Event('transitionend', { bubbles: true }));
+    .element.dispatchEvent(createTransitionEnd(propertyName));
   await nextTick();
 }
 
@@ -120,6 +134,10 @@ describe('AwesomeButtonProgress', () => {
     });
 
     await pressProgressButton(wrapper);
+    expect(pressSpy).not.toHaveBeenCalled();
+
+    await dispatchContentTransitionEnd(wrapper, 'width');
+
     expect(pressSpy).not.toHaveBeenCalled();
 
     await dispatchContentTransitionEnd(wrapper);

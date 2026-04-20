@@ -3,8 +3,9 @@
 ## 1.0.1
 
 - added fixed-size width/height transitions for `AwesomeButton`
+- added measured auto-width transitions for `AwesomeButton`
 - added `animateSize` as an opt-out prop for base, progress, and social buttons
-- added Storybook coverage for animated fixed-size changes
+- added Storybook coverage for animated fixed-size and auto-width changes
 
 ## 1.0.0
 

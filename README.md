@@ -209,7 +209,8 @@ import '@rcaferati/vue-awesome-button/themes/theme-blue.css';
 
 - `size="small" | "medium" | "large"` uses fixed button dimensions.
 - `:size="null"` uses content-driven auto width.
-- Fixed-size changes animate by default. Use `:animate-size="false"` to opt out.
+- Fixed-size changes and measured auto-width changes animate by default. Use `:animate-size="false"` to opt out.
+- Switching between fixed size and auto width is intentionally instant in this release.
 
 ```vue
 <script setup lang="ts">
@@ -295,7 +296,7 @@ const expanded = ref(false);
 | `disabled` | `boolean` | `false` | Disables interactions |
 | `visible` | `boolean` | `true` | Toggles visible state class |
 | `placeholder` | `boolean` | `false` | Renders placeholder/skeleton state |
-| `animateSize` | `boolean` | `true` | Animates fixed-size width/height changes; auto-width animation is not affected |
+| `animateSize` | `boolean` | `true` | Animates fixed-size and measured auto-width changes |
 | `textTransition` | `boolean` | `false` | Animates string-only label changes |
 | `between` | `boolean` | `false` | Uses `space-between` layout for content |
 | `ripple` | `boolean` | `false` | Enables ripple effect on successful activation |

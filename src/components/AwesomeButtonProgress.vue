@@ -75,6 +75,10 @@ const progressEndFallbackMs = computed(() =>
   Math.max(300, Math.ceil(resolvedProgressLoadingTime.value / 20) + 120)
 );
 
+function isTransformTransitionEnd(event: Event) {
+  return (event as TransitionEvent).propertyName === 'transform';
+}
+
 function getButtonElement() {
   return (buttonRef.value?.$el as HTMLElement | undefined) ?? null;
 }
@@ -129,6 +133,10 @@ function waitForContentTransition(
 
   const handleTransitionEnd = (event: Event) => {
     if (event.target !== contentElement) {
+      return;
+    }
+
+    if (!isTransformTransitionEnd(event)) {
       return;
     }
 
