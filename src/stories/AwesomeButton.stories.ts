@@ -107,6 +107,88 @@ export const AutoWidth: Story = {
   }),
 };
 
+export const AnimatedSizeChange: Story = {
+  render: (args) => ({
+    components: { AwesomeButton },
+    setup: () => {
+      const sizes = ['small', 'medium', 'large'] as const;
+      const sizeIndex = ref(1);
+      const currentSize = () => sizes[sizeIndex.value];
+      const cycleSize = () => {
+        sizeIndex.value = (sizeIndex.value + 1) % sizes.length;
+      };
+
+      return { args, currentSize, cycleSize };
+    },
+    template: `
+      <div style="display:grid; gap:18px; justify-items:center;">
+        <div style="display:grid; gap:16px; justify-items:center;">
+          <div style="display:grid; gap:8px; justify-items:center;">
+            <span style="font-size:12px; font-weight:600; opacity:0.7;">animated</span>
+            <AwesomeButton v-bind="args" :size="currentSize()">
+              {{ currentSize() }}
+            </AwesomeButton>
+          </div>
+
+          <div style="display:grid; gap:8px; justify-items:center;">
+            <span style="font-size:12px; font-weight:600; opacity:0.7;">instant opt-out</span>
+            <AwesomeButton v-bind="args" :size="currentSize()" :animate-size="false">
+              {{ currentSize() }}
+            </AwesomeButton>
+          </div>
+        </div>
+
+        <button type="button" @click="cycleSize">
+          Cycle size
+        </button>
+      </div>
+    `,
+  }),
+};
+
+export const AnimatedAutoWidthChange: Story = {
+  args: {
+    size: null,
+    textTransition: true,
+  },
+  render: (args) => ({
+    components: { AwesomeButton },
+    setup: () => {
+      const expanded = ref(false);
+      const label = () =>
+        expanded.value ? 'Open analytics dashboard' : 'Open';
+      const toggle = () => {
+        expanded.value = !expanded.value;
+      };
+
+      return { args, expanded, label, toggle };
+    },
+    template: `
+      <div style="display:grid; gap:18px; justify-items:center;">
+        <div style="display:grid; gap:16px; justify-items:center;">
+          <div style="display:grid; gap:8px; justify-items:center;">
+            <span style="font-size:12px; font-weight:600; opacity:0.7;">animated auto width</span>
+            <AwesomeButton v-bind="args">
+              {{ label() }}
+            </AwesomeButton>
+          </div>
+
+          <div style="display:grid; gap:8px; justify-items:center;">
+            <span style="font-size:12px; font-weight:600; opacity:0.7;">instant opt-out</span>
+            <AwesomeButton v-bind="args" :animate-size="false">
+              {{ label() }}
+            </AwesomeButton>
+          </div>
+        </div>
+
+        <button type="button" @click="toggle">
+          Toggle label length
+        </button>
+      </div>
+    `,
+  }),
+};
+
 export const TextTransition: Story = {
   args: {
     textTransition: true,

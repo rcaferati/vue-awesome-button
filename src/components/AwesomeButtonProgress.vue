@@ -26,6 +26,7 @@ const props = withDefaults(defineProps<AwesomeButtonProgressProps>(), {
   disabled: false,
   visible: true,
   placeholder: false,
+  animateSize: true,
   textTransition: false,
   between: false,
   ripple: false,
@@ -73,6 +74,10 @@ const progressStyle = computed(() => ({
 const progressEndFallbackMs = computed(() =>
   Math.max(300, Math.ceil(resolvedProgressLoadingTime.value / 20) + 120)
 );
+
+function isTransformTransitionEnd(event: Event) {
+  return (event as TransitionEvent).propertyName === 'transform';
+}
 
 function getButtonElement() {
   return (buttonRef.value?.$el as HTMLElement | undefined) ?? null;
@@ -128,6 +133,10 @@ function waitForContentTransition(
 
   const handleTransitionEnd = (event: Event) => {
     if (event.target !== contentElement) {
+      return;
+    }
+
+    if (!isTransformTransitionEnd(event)) {
       return;
     }
 
@@ -231,6 +240,7 @@ function handlePress(event: ButtonPressEvent) {
     :disabled="props.disabled"
     :visible="props.visible"
     :placeholder="props.placeholder"
+    :animate-size="props.animateSize"
     :text-transition="props.textTransition"
     :between="props.between"
     :ripple="props.ripple"

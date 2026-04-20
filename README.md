@@ -6,7 +6,7 @@
 - **`AwesomeButtonProgress`** - progress flow wrapper on top of `AwesomeButton`
 - **`AwesomeButtonSocial`** - social/share wrapper on top of `AwesomeButton`
 
-This README is updated for the current `1.0.0` release outputs, including base CSS, bundled theme CSS files, Vue slots, emits, and plugin registration.
+This README is updated for the current `1.0.1` release outputs, including base CSS, bundled theme CSS files, Vue slots, emits, and plugin registration.
 
 ---
 
@@ -209,6 +209,8 @@ import '@rcaferati/vue-awesome-button/themes/theme-blue.css';
 
 - `size="small" | "medium" | "large"` uses fixed button dimensions.
 - `:size="null"` uses content-driven auto width.
+- Fixed-size changes and measured auto-width changes animate by default. Use `:animate-size="false"` to opt out.
+- Switching between fixed size and auto width is intentionally instant in this release.
 
 ```vue
 <script setup lang="ts">
@@ -230,6 +232,9 @@ import '@rcaferati/vue-awesome-button/themes/theme-blue.css';
     </AwesomeButton>
     <AwesomeButton theme="blue" :size="null" type="primary">
       Auto width grows with content
+    </AwesomeButton>
+    <AwesomeButton theme="blue" size="large" type="primary" :animate-size="false">
+      Instant fixed-size change
     </AwesomeButton>
   </div>
 </template>
@@ -291,6 +296,7 @@ const expanded = ref(false);
 | `disabled` | `boolean` | `false` | Disables interactions |
 | `visible` | `boolean` | `true` | Toggles visible state class |
 | `placeholder` | `boolean` | `false` | Renders placeholder/skeleton state |
+| `animateSize` | `boolean` | `true` | Animates fixed-size and measured auto-width changes |
 | `textTransition` | `boolean` | `false` | Animates string-only label changes |
 | `between` | `boolean` | `false` | Uses `space-between` layout for content |
 | `ripple` | `boolean` | `false` | Enables ripple effect on successful activation |
@@ -467,12 +473,14 @@ async function handleVerify(
 
 ### Behavior summary
 
-On activation, the component follows this order:
+On activation, the component behaves like this:
 
-1. If you listen to `@press`, your handler is used as a full override
-2. If `href` is provided, native anchor navigation is used
-3. On mobile-capable environments, it attempts `navigator.share(...)`
-4. Otherwise it uses a type-specific web share URL, direct URL, or centered popup where supported
+1. If you listen to `@press`, your handler is called and the built-in sharer logic is skipped
+2. If `href` is provided, the forwarded base anchor still navigates normally
+3. If there is no `href` and no custom sharer override, mobile-capable environments attempt `navigator.share(...)`
+4. Otherwise, the built-in sharer uses a type-specific web share URL, direct URL, or centered popup where supported
+
+If you want a pure custom action with no native navigation, avoid combining `@press` with `href`.
 
 ### Basic share example (LinkedIn)
 
@@ -581,7 +589,7 @@ import '@rcaferati/vue-awesome-button/styles.css';
 
 ### `href` mode (bypass sharer logic)
 
-If `href` is present, the component behaves like an anchor and does not execute the share flow.
+If `href` is present, the component behaves like an anchor and does not execute the built-in share flow.
 
 ```vue
 <script setup lang="ts">
@@ -654,6 +662,8 @@ Use a named icon slot and omit default slot text. Add an accessible label throug
 Use the progress `@press` contract and call `next(true)` or `next(false, label?)` when the work completes.
 
 ```ts
+import type { ProgressNext } from '@rcaferati/vue-awesome-button';
+
 async function save(_event: MouseEvent | KeyboardEvent | PointerEvent, next: ProgressNext) {
   try {
     await saveRecord();

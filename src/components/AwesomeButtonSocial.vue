@@ -19,6 +19,7 @@ const props = withDefaults(defineProps<AwesomeButtonSocialProps>(), {
   disabled: false,
   visible: true,
   placeholder: false,
+  animateSize: true,
   textTransition: false,
   between: false,
   ripple: false,
@@ -192,6 +193,7 @@ async function handlePress(event: ButtonPressEvent) {
     :disabled="props.disabled"
     :visible="props.visible"
     :placeholder="props.placeholder"
+    :animate-size="props.animateSize"
     :text-transition="props.textTransition"
     :between="props.between"
     :ripple="props.ripple"

@@ -43,10 +43,24 @@ function setWrapperMetrics(wrapper: ReturnType<typeof mount>, width = 100, heigh
   wrapperElement.getBoundingClientRect = () => mockRect({ width, height });
 }
 
-async function dispatchContentTransitionEnd(wrapper: ReturnType<typeof mount>) {
+function createTransitionEnd(propertyName = 'transform') {
+  const event = new Event('transitionend', { bubbles: true });
+
+  Object.defineProperty(event, 'propertyName', {
+    configurable: true,
+    value: propertyName,
+  });
+
+  return event;
+}
+
+async function dispatchContentTransitionEnd(
+  wrapper: ReturnType<typeof mount>,
+  propertyName = 'transform'
+) {
   wrapper
     .get('.aws-btn__content')
-    .element.dispatchEvent(new Event('transitionend', { bubbles: true }));
+    .element.dispatchEvent(createTransitionEnd(propertyName));
   await nextTick();
 }
 
@@ -88,6 +102,115 @@ function createRafController() {
       return callbacks.length;
     },
   };
+}
+
+function mockAutoTextScrollWidths({
+  contentMin = 80,
+  contentMultiplier = 12,
+  labelMin = 40,
+  labelMultiplier = 8,
+} = {}) {
+  const originalScrollWidth = Object.getOwnPropertyDescriptor(
+    HTMLElement.prototype,
+    'scrollWidth'
+  );
+
+  Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
+    configurable: true,
+    get() {
+      const element = this as HTMLElement;
+
+      if (element.classList.contains('aws-btn__content')) {
+        const labelText =
+          element.querySelector('.aws-btn__label')?.textContent ?? '';
+        return Math.max(contentMin, labelText.length * contentMultiplier);
+      }
+
+      if (element.classList.contains('aws-btn__label')) {
+        return Math.max(labelMin, (element.textContent?.length ?? 0) * labelMultiplier);
+      }
+
+      return 0;
+    },
+  });
+
+  return () => {
+    if (originalScrollWidth) {
+      Object.defineProperty(
+        HTMLElement.prototype,
+        'scrollWidth',
+        originalScrollWidth
+      );
+    } else {
+      delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
+    }
+  };
+}
+
+function runQueuedFrames(
+  rafController: ReturnType<typeof createRafController>,
+  timestamp: number,
+  maxFrames = 10
+) {
+  let frameCount = 0;
+
+  while (rafController.size() > 0 && frameCount < maxFrames) {
+    rafController.run(timestamp);
+    frameCount += 1;
+  }
+
+  if (rafController.size() > 0) {
+    throw new Error('Exceeded queued requestAnimationFrame drain limit.');
+  }
+}
+
+function mountAutoWidthTextTransitionHost({
+  label,
+  animateSize = true,
+}: {
+  label: string;
+  animateSize?: boolean;
+}) {
+  const animateSizeAttr = animateSize ? '' : ' :animate-size="false"';
+  const host = mount({
+    components: { AwesomeButton },
+    data: () => ({
+      label,
+    }),
+    template: `
+      <AwesomeButton text-transition :size="null"${animateSizeAttr}>
+        {{ label }}
+      </AwesomeButton>
+    `,
+  });
+
+  return {
+    host,
+    vm: host.vm as unknown as { label: string },
+    contentElement: host.get('.aws-btn__content').element as HTMLElement,
+    labelElement: host.get('.aws-btn__label').element as HTMLElement,
+  };
+}
+
+function setAutoTextElementScrollWidths(
+  contentElement: HTMLElement,
+  labelElement: HTMLElement,
+  {
+    contentMin = 80,
+    contentMultiplier = 12,
+    labelMin = 40,
+    labelMultiplier = 8,
+  } = {}
+) {
+  Object.defineProperty(contentElement, 'scrollWidth', {
+    configurable: true,
+    get: () => Math.max(contentMin, (labelElement.textContent?.length ?? 0) * contentMultiplier),
+  });
+
+  Object.defineProperty(labelElement, 'scrollWidth', {
+    configurable: true,
+    get: () => Math.max(labelMin, (labelElement.textContent?.length ?? 0) * labelMultiplier),
+  });
 }
 
 describe('AwesomeButton', () => {
@@ -208,6 +331,41 @@ describe('AwesomeButton', () => {
     expect(wrapper.classes()).toContain('aws-btn--between');
     expect(wrapper.classes()).toContain('aws-btn--theme-blue');
     expect(wrapper.classes()).toContain('aws-btn--active');
+    expect(wrapper.classes()).toContain('aws-btn--animate-size');
+  });
+
+  it('allows fixed-size animation to be disabled', () => {
+    const wrapper = mount(AwesomeButton, {
+      props: {
+        animateSize: false,
+      },
+      slots: {
+        default: 'Instant size',
+      },
+    });
+
+    expect(wrapper.classes()).toContain('aws-btn--fixed');
+    expect(wrapper.classes()).not.toContain('aws-btn--animate-size');
+  });
+
+  it('keeps animated-size behavior while fixed size classes change', async () => {
+    const wrapper = mount(AwesomeButton, {
+      props: {
+        size: 'small',
+      },
+      slots: {
+        default: 'Resizable',
+      },
+    });
+
+    expect(wrapper.classes()).toContain('aws-btn--small');
+    expect(wrapper.classes()).toContain('aws-btn--animate-size');
+
+    await wrapper.setProps({ size: 'large' });
+
+    expect(wrapper.classes()).not.toContain('aws-btn--small');
+    expect(wrapper.classes()).toContain('aws-btn--large');
+    expect(wrapper.classes()).toContain('aws-btn--animate-size');
   });
 
   it('applies placeholder, disabled, and icon-only modifiers correctly', () => {
@@ -318,6 +476,44 @@ describe('AwesomeButton', () => {
     expect(wrapper.classes()).not.toContain('aws-btn--active');
 
     await dispatchContentTransitionEnd(wrapper);
+
+    expect(wrapper.classes()).not.toContain('aws-btn--releasing');
+    expect(wrapper.emitted('released')).toHaveLength(1);
+  });
+
+  it('ignores non-transform content transitionend events while releasing', async () => {
+    const wrapper = mount(AwesomeButton, {
+      slots: {
+        default: 'Button',
+      },
+    });
+
+    const rootElement = wrapper.element as HTMLElement;
+    rootElement.dispatchEvent(
+      new PointerEvent('pointerdown', {
+        bubbles: true,
+        button: 0,
+        pointerId: 1,
+        pointerType: 'mouse',
+      })
+    );
+    rootElement.dispatchEvent(
+      new PointerEvent('pointerleave', {
+        bubbles: true,
+        pointerId: 1,
+        pointerType: 'mouse',
+      })
+    );
+    await nextTick();
+
+    expect(wrapper.classes()).toContain('aws-btn--releasing');
+
+    await dispatchContentTransitionEnd(wrapper, 'width');
+
+    expect(wrapper.classes()).toContain('aws-btn--releasing');
+    expect(wrapper.emitted('released')).toBeUndefined();
+
+    await dispatchContentTransitionEnd(wrapper, 'transform');
 
     expect(wrapper.classes()).not.toContain('aws-btn--releasing');
     expect(wrapper.emitted('released')).toHaveLength(1);
@@ -454,16 +650,9 @@ describe('AwesomeButton', () => {
   });
 
   it('snaps auto-width content and label widths to integer pixels', async () => {
-    const originalRaf = window.requestAnimationFrame;
-    const originalCancelRaf = window.cancelAnimationFrame;
+    const rafController = createRafController();
 
     try {
-      window.requestAnimationFrame = ((callback: FrameRequestCallback) => {
-        callback(0);
-        return 1;
-      }) as typeof window.requestAnimationFrame;
-      window.cancelAnimationFrame = (() => {}) as typeof window.cancelAnimationFrame;
-
       const wrapper = mount(AwesomeButton, {
         props: {
           size: null,
@@ -489,16 +678,494 @@ describe('AwesomeButton', () => {
       contentElement.getBoundingClientRect = () => mockRect({ width: 121 });
       labelElement.getBoundingClientRect = () => mockRect({ width: 77 });
 
-      await wrapper.setProps({ between: true });
+      rafController.flushAll(0);
       await nextTick();
 
       expect(contentElement.getAttribute('style')).toContain('width: 121px;');
-      expect(contentElement.getAttribute('style')).toContain('flex: 0 0 121px;');
+      expect(contentElement.style.flexBasis).toBe('121px');
+      expect(contentElement.style.flexGrow).toBe('0');
+      expect(contentElement.style.flexShrink).toBe('0');
       expect(labelElement.getAttribute('style')).toContain('width: 77px;');
-      expect(labelElement.getAttribute('style')).toContain('flex: 0 0 77px;');
+      expect(labelElement.style.flexBasis).toBe('77px');
+      expect(labelElement.style.flexGrow).toBe('0');
+      expect(labelElement.style.flexShrink).toBe('0');
+      expect(wrapper.classes()).toContain('aws-btn--auto-size-ready');
     } finally {
-      window.requestAnimationFrame = originalRaf;
-      window.cancelAnimationFrame = originalCancelRaf;
+      rafController.restore();
+    }
+  });
+
+  it('snaps the initial auto-width measurement instantly and marks it ready', async () => {
+    const rafController = createRafController();
+
+    try {
+      const wrapper = mount(AwesomeButton, {
+        props: {
+          size: null,
+        },
+        slots: {
+          default: 'Auto width',
+        },
+      });
+
+      const contentElement = wrapper.get('.aws-btn__content').element as HTMLElement;
+      const labelElement = wrapper.get('.aws-btn__label').element as HTMLElement;
+
+      Object.defineProperty(contentElement, 'scrollWidth', {
+        configurable: true,
+        get: () => 118,
+      });
+      Object.defineProperty(labelElement, 'scrollWidth', {
+        configurable: true,
+        get: () => 74,
+      });
+
+      rafController.flushAll(0);
+      await nextTick();
+
+      expect(contentElement.getAttribute('style')).toContain('width: 118px;');
+      expect(labelElement.getAttribute('style')).toContain('width: 74px;');
+      expect(wrapper.classes()).toContain('aws-btn--auto-size-ready');
+      expect(wrapper.classes()).not.toContain('aws-btn--auto-size-transitioning');
+    } finally {
+      rafController.restore();
+    }
+  });
+
+  it('keeps auto-width interaction updates out of the size measurement path', async () => {
+    const rafController = createRafController();
+
+    try {
+      const wrapper = mount(AwesomeButton, {
+        props: {
+          size: null,
+        },
+        slots: {
+          default: 'Auto width',
+        },
+      });
+
+      const rootElement = wrapper.element as HTMLElement;
+      const contentElement = wrapper.get('.aws-btn__content').element as HTMLElement;
+      const labelElement = wrapper.get('.aws-btn__label').element as HTMLElement;
+
+      setWrapperMetrics(wrapper, 120, 44);
+
+      Object.defineProperty(contentElement, 'scrollWidth', {
+        configurable: true,
+        get: () => 120,
+      });
+      Object.defineProperty(labelElement, 'scrollWidth', {
+        configurable: true,
+        get: () => 80,
+      });
+
+      rafController.flushAll(0);
+      await nextTick();
+
+      expect(wrapper.classes()).toContain('aws-btn--auto-size-ready');
+      expect(rafController.size()).toBe(0);
+
+      rootElement.dispatchEvent(
+        new PointerEvent('pointermove', {
+          bubbles: true,
+          pointerType: 'mouse',
+          clientX: 60,
+        })
+      );
+      await nextTick();
+
+      expect(wrapper.classes()).toContain('aws-btn--middle');
+      expect(wrapper.classes()).not.toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.style.transition).not.toBe('none');
+      expect(rafController.size()).toBe(0);
+
+      rootElement.dispatchEvent(
+        new PointerEvent('pointerdown', {
+          bubbles: true,
+          button: 0,
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: 60,
+          clientY: 22,
+        })
+      );
+      await nextTick();
+
+      expect(wrapper.classes()).toContain('aws-btn--active');
+      expect(wrapper.classes()).not.toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.style.transition).not.toBe('none');
+      expect(rafController.size()).toBe(0);
+
+      rootElement.dispatchEvent(
+        new PointerEvent('pointerup', {
+          bubbles: true,
+          pointerId: 1,
+          pointerType: 'mouse',
+          clientX: 60,
+          clientY: 22,
+        })
+      );
+      await nextTick();
+
+      expect(wrapper.classes()).toContain('aws-btn--releasing');
+      expect(wrapper.classes()).not.toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.style.transition).not.toBe('none');
+      expect(rafController.size()).toBe(0);
+
+      contentElement.dispatchEvent(createTransitionEnd('transform'));
+      await nextTick();
+
+      expect(wrapper.classes()).not.toContain('aws-btn--releasing');
+      expect(rafController.size()).toBe(0);
+    } finally {
+      rafController.restore();
+    }
+  });
+
+  it('updates auto-width targets on label changes while preserving animation classes', async () => {
+    const rafController = createRafController();
+
+    try {
+      const host = mount({
+        components: { AwesomeButton },
+        data: () => ({
+          label: 'Open',
+        }),
+        template: `
+          <AwesomeButton :size="null">
+            {{ label }}
+          </AwesomeButton>
+        `,
+      });
+
+      const contentElement = host.get('.aws-btn__content').element as HTMLElement;
+      const labelElement = host.get('.aws-btn__label').element as HTMLElement;
+
+      Object.defineProperty(contentElement, 'scrollWidth', {
+        configurable: true,
+        get: () => Math.max(80, (labelElement.textContent?.length ?? 0) * 12),
+      });
+      Object.defineProperty(labelElement, 'scrollWidth', {
+        configurable: true,
+        get: () => Math.max(40, (labelElement.textContent?.length ?? 0) * 8),
+      });
+
+      rafController.flushAll(0);
+      await nextTick();
+
+      expect(host.classes()).toContain('aws-btn--auto-size-ready');
+      expect(contentElement.getAttribute('style')).toContain('width: 80px;');
+
+      (host.vm as unknown as { label: string }).label = 'Open dashboard';
+      await nextTick();
+      rafController.flushAll(100);
+      await nextTick();
+
+      expect(host.classes()).toContain('aws-btn--animate-size');
+      expect(host.classes()).toContain('aws-btn--auto-size-ready');
+      expect(host.classes()).toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.getAttribute('style')).toContain('width: 168px;');
+      expect(labelElement.getAttribute('style')).toContain('width: 112px;');
+
+      contentElement.dispatchEvent(createTransitionEnd('width'));
+      await nextTick();
+
+      expect(host.classes()).not.toContain('aws-btn--auto-size-transitioning');
+    } finally {
+      rafController.restore();
+    }
+  });
+
+  it('commits the old auto-width pixel size before applying the next animated target', async () => {
+    const rafController = createRafController();
+
+    try {
+      const host = mount({
+        components: { AwesomeButton },
+        data: () => ({
+          label: 'Open',
+        }),
+        template: `
+          <AwesomeButton :size="null">
+            {{ label }}
+          </AwesomeButton>
+        `,
+      });
+
+      const contentElement = host.get('.aws-btn__content').element as HTMLElement;
+      const labelElement = host.get('.aws-btn__label').element as HTMLElement;
+
+      Object.defineProperty(contentElement, 'scrollWidth', {
+        configurable: true,
+        get: () => Math.max(80, (labelElement.textContent?.length ?? 0) * 12),
+      });
+      Object.defineProperty(labelElement, 'scrollWidth', {
+        configurable: true,
+        get: () => Math.max(40, (labelElement.textContent?.length ?? 0) * 8),
+      });
+
+      rafController.flushAll(0);
+      await nextTick();
+      rafController.flushAll(1);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('80px');
+      expect(labelElement.style.width).toBe('40px');
+
+      (host.vm as unknown as { label: string }).label = 'Open dashboard';
+      await nextTick();
+
+      rafController.run(100);
+      await nextTick();
+
+      expect(host.classes()).toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.style.width).toBe('80px');
+      expect(labelElement.style.width).toBe('40px');
+
+      rafController.run(116);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.style.width).toBe('112px');
+    } finally {
+      rafController.restore();
+    }
+  });
+
+  it('keeps auto-width snapping but disables auto-size transition classes when animateSize is false', async () => {
+    const rafController = createRafController();
+
+    try {
+      const wrapper = mount(AwesomeButton, {
+        props: {
+          size: null,
+          animateSize: false,
+        },
+        slots: {
+          default: 'Auto width',
+        },
+      });
+
+      const contentElement = wrapper.get('.aws-btn__content').element as HTMLElement;
+      const labelElement = wrapper.get('.aws-btn__label').element as HTMLElement;
+
+      Object.defineProperty(contentElement, 'scrollWidth', {
+        configurable: true,
+        get: () => 122,
+      });
+      Object.defineProperty(labelElement, 'scrollWidth', {
+        configurable: true,
+        get: () => 82,
+      });
+
+      rafController.flushAll(0);
+      await nextTick();
+
+      expect(contentElement.getAttribute('style')).toContain('width: 122px;');
+      expect(labelElement.getAttribute('style')).toContain('width: 82px;');
+      expect(wrapper.classes()).not.toContain('aws-btn--animate-size');
+      expect(wrapper.classes()).not.toContain('aws-btn--auto-size-ready');
+    } finally {
+      rafController.restore();
+    }
+  });
+
+  it('defers ResizeObserver auto-width remeasurement during active size transitions', async () => {
+    vi.useFakeTimers();
+    const rafController = createRafController();
+    const originalResizeObserver = globalThis.ResizeObserver;
+    const resizeCallbackRef: {
+      current?: ResizeObserverCallback;
+    } = {};
+
+    class MockResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallbackRef.current = callback;
+      }
+
+      observe() {}
+      disconnect() {}
+    }
+
+    globalThis.ResizeObserver =
+      MockResizeObserver as unknown as typeof ResizeObserver;
+
+    try {
+      const host = mount({
+        components: { AwesomeButton },
+        data: () => ({
+          label: 'Open',
+          forcedContentWidth: 80,
+          forcedLabelWidth: 40,
+        }),
+        template: `
+          <AwesomeButton :size="null">
+            {{ label }}
+          </AwesomeButton>
+        `,
+      });
+
+      const vm = host.vm as unknown as {
+        label: string;
+        forcedContentWidth: number;
+        forcedLabelWidth: number;
+      };
+      const contentElement = host.get('.aws-btn__content').element as HTMLElement;
+      const labelElement = host.get('.aws-btn__label').element as HTMLElement;
+
+      Object.defineProperty(contentElement, 'scrollWidth', {
+        configurable: true,
+        get: () => vm.forcedContentWidth,
+      });
+      Object.defineProperty(labelElement, 'scrollWidth', {
+        configurable: true,
+        get: () => vm.forcedLabelWidth,
+      });
+
+      rafController.flushAll(0);
+      await nextTick();
+
+      vm.label = 'Open dashboard';
+      vm.forcedContentWidth = 168;
+      vm.forcedLabelWidth = 112;
+      await nextTick();
+      rafController.flushAll(100);
+      await nextTick();
+
+      expect(host.classes()).toContain('aws-btn--auto-size-transitioning');
+
+      rafController.flushAll(120);
+      await nextTick();
+
+      expect(rafController.size()).toBe(0);
+
+      vm.forcedContentWidth = 196;
+      vm.forcedLabelWidth = 140;
+      const callback = resizeCallbackRef.current;
+
+      if (!callback) {
+        throw new Error('Expected ResizeObserver callback to be registered.');
+      }
+
+      callback([], {} as ResizeObserver);
+
+      expect(rafController.size()).toBe(0);
+
+      contentElement.dispatchEvent(createTransitionEnd('width'));
+      await nextTick();
+
+      expect(rafController.size()).toBe(1);
+
+      rafController.flushAll(200);
+      await nextTick();
+
+      expect(contentElement.getAttribute('style')).toContain('width: 196px;');
+      expect(labelElement.getAttribute('style')).toContain('width: 140px;');
+    } finally {
+      globalThis.ResizeObserver = originalResizeObserver;
+      rafController.restore();
+      vi.useRealTimers();
+    }
+  });
+
+  it('replays deferred auto-width remeasurement after grow-text choreography completes', async () => {
+    const rafController = createRafController();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const performanceSpy = vi
+      .spyOn(window.performance, 'now')
+      .mockReturnValue(0);
+    const originalResizeObserver = globalThis.ResizeObserver;
+    const resizeCallbackRef: {
+      current?: ResizeObserverCallback;
+    } = {};
+    const restoreScrollWidth = mockAutoTextScrollWidths();
+
+    class MockResizeObserver {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallbackRef.current = callback;
+      }
+
+      observe() {}
+      disconnect() {}
+    }
+
+    globalThis.ResizeObserver =
+      MockResizeObserver as unknown as typeof ResizeObserver;
+
+    try {
+      const { host, vm, contentElement, labelElement } =
+        mountAutoWidthTextTransitionHost({
+          label: 'Open',
+        });
+
+      let useForcedWidths = false;
+
+      Object.defineProperty(contentElement, 'scrollWidth', {
+        configurable: true,
+        get: () =>
+          useForcedWidths
+            ? 196
+            : Math.max(80, (labelElement.textContent?.length ?? 0) * 12),
+      });
+
+      Object.defineProperty(labelElement, 'scrollWidth', {
+        configurable: true,
+        get: () =>
+          useForcedWidths
+            ? 140
+            : Math.max(40, (labelElement.textContent?.length ?? 0) * 8),
+      });
+
+      rafController.flushAll(0);
+      await nextTick();
+      rafController.flushAll(1);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('80px');
+      expect(labelElement.style.width).toBe('40px');
+
+      vm.label = 'Open dashboard';
+      await nextTick();
+
+      rafController.run(16);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.style.width).toBe('112px');
+
+      contentElement.dispatchEvent(createTransitionEnd('width'));
+      await nextTick();
+
+      useForcedWidths = true;
+
+      const callback = resizeCallbackRef.current;
+
+      if (!callback) {
+        throw new Error('Expected ResizeObserver callback to be registered.');
+      }
+
+      callback([], {} as ResizeObserver);
+
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.style.width).toBe('112px');
+
+      rafController.flushAll(500);
+      await nextTick();
+      await nextTick();
+
+      rafController.flushAll(516);
+      await nextTick();
+
+      expect(labelElement.textContent).toBe('Open dashboard');
+      expect(contentElement.style.width).toBe('196px');
+      expect(labelElement.style.width).toBe('140px');
+    } finally {
+      restoreScrollWidth();
+      globalThis.ResizeObserver = originalResizeObserver;
+      rafController.restore();
+      randomSpy.mockRestore();
+      performanceSpy.mockRestore();
     }
   });
 
@@ -613,8 +1280,31 @@ describe('AwesomeButton', () => {
     const performanceSpy = vi
       .spyOn(window.performance, 'now')
       .mockReturnValue(0);
+    const originalScrollWidth = Object.getOwnPropertyDescriptor(
+      HTMLElement.prototype,
+      'scrollWidth'
+    );
 
     try {
+      Object.defineProperty(HTMLElement.prototype, 'scrollWidth', {
+        configurable: true,
+        get() {
+          const element = this as HTMLElement;
+
+          if (element.classList.contains('aws-btn__content')) {
+            const labelText =
+              element.querySelector('.aws-btn__label')?.textContent ?? '';
+            return Math.max(60, labelText.length * 14);
+          }
+
+          if (element.classList.contains('aws-btn__label')) {
+            return Math.max(40, (element.textContent?.length ?? 0) * 10);
+          }
+
+          return 0;
+        },
+      });
+
       const host = mount({
         components: { AwesomeButton },
         data: () => ({
@@ -664,6 +1354,344 @@ describe('AwesomeButton', () => {
       expect(contentElement.getAttribute('style')).toContain('width: 60px;');
       expect(labelElement.getAttribute('style')).toContain('width: 40px;');
     } finally {
+      if (originalScrollWidth) {
+        Object.defineProperty(
+          HTMLElement.prototype,
+          'scrollWidth',
+          originalScrollWidth
+        );
+      } else {
+        delete (HTMLElement.prototype as { scrollWidth?: number }).scrollWidth;
+      }
+      rafController.restore();
+      randomSpy.mockRestore();
+      performanceSpy.mockRestore();
+    }
+  });
+
+  it('grows auto-width before starting textTransition', async () => {
+    const rafController = createRafController();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const performanceSpy = vi
+      .spyOn(window.performance, 'now')
+      .mockReturnValue(0);
+    const restoreScrollWidth = mockAutoTextScrollWidths();
+
+    try {
+      const { host, vm, contentElement, labelElement } =
+        mountAutoWidthTextTransitionHost({
+          label: 'Open',
+        });
+
+      setAutoTextElementScrollWidths(contentElement, labelElement);
+
+      rafController.flushAll(0);
+      await nextTick();
+      rafController.flushAll(1);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('80px');
+      expect(labelElement.style.width).toBe('40px');
+      expect(labelElement.textContent).toBe('Open');
+
+      vm.label = 'Open dashboard';
+      await nextTick();
+
+      expect(host.classes()).toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.style.width).toBe('80px');
+      expect(labelElement.style.width).toBe('40px');
+      expect(labelElement.textContent).toBe('Open');
+
+      rafController.run(16);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.style.width).toBe('112px');
+      expect(labelElement.textContent).toBe('Open');
+
+      contentElement.dispatchEvent(createTransitionEnd('width'));
+      await nextTick();
+
+      expect(host.classes()).not.toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.style.width).toBe('168px');
+
+      for (const timestamp of [500, 600, 700]) {
+        rafController.flushAll(timestamp);
+        await nextTick();
+        await nextTick();
+        expect(contentElement.style.width).toBe('168px');
+      }
+
+      rafController.flushAll(800);
+      await nextTick();
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.textContent).toBe('Open dashboard');
+    } finally {
+      restoreScrollWidth();
+      rafController.restore();
+      randomSpy.mockRestore();
+      performanceSpy.mockRestore();
+    }
+  });
+
+  it('runs textTransition before shrinking auto-width', async () => {
+    const rafController = createRafController();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const performanceSpy = vi
+      .spyOn(window.performance, 'now')
+      .mockReturnValue(0);
+    const restoreScrollWidth = mockAutoTextScrollWidths();
+
+    try {
+      const { host, vm, contentElement, labelElement } =
+        mountAutoWidthTextTransitionHost({
+          label: 'Open dashboard',
+        });
+
+      rafController.flushAll(0);
+      await nextTick();
+      rafController.flushAll(1);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.style.width).toBe('112px');
+      expect(labelElement.textContent).toBe('Open dashboard');
+
+      vm.label = 'Open';
+      await nextTick();
+
+      expect(host.classes()).not.toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.style.width).toBe('112px');
+      expect(labelElement.textContent).toBe('Open dashboard');
+
+      rafController.run(100);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.style.width).toBe('112px');
+      expect(labelElement.textContent).not.toBe('Open dashboard');
+      expect(labelElement.textContent).not.toBe('Open');
+
+      rafController.run(400);
+      await nextTick();
+
+      expect(labelElement.textContent).toBe('Open');
+      expect(host.classes()).toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.style.width).toBe('168px');
+
+      rafController.run(416);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('80px');
+      expect(labelElement.style.width).toBe('40px');
+    } finally {
+      restoreScrollWidth();
+      rafController.restore();
+      randomSpy.mockRestore();
+      performanceSpy.mockRestore();
+    }
+  });
+
+  it('snaps growth first when auto-width textTransition has animateSize disabled', async () => {
+    const rafController = createRafController();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const performanceSpy = vi
+      .spyOn(window.performance, 'now')
+      .mockReturnValue(0);
+    const restoreScrollWidth = mockAutoTextScrollWidths();
+
+    try {
+      const { host, vm, contentElement, labelElement } =
+        mountAutoWidthTextTransitionHost({
+          label: 'Open',
+          animateSize: false,
+        });
+
+      rafController.flushAll(0);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('80px');
+      expect(labelElement.textContent).toBe('Open');
+
+      vm.label = 'Open dashboard';
+      await nextTick();
+
+      expect(host.classes()).not.toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.style.width).toBe('112px');
+      expect(labelElement.textContent).toBe('Open');
+
+      runQueuedFrames(rafController, 400);
+      await nextTick();
+
+      expect(labelElement.textContent).toBe('Open dashboard');
+    } finally {
+      restoreScrollWidth();
+      rafController.restore();
+      randomSpy.mockRestore();
+      performanceSpy.mockRestore();
+    }
+  });
+
+  it('runs textTransition before snapping shrink when animateSize is disabled', async () => {
+    const rafController = createRafController();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const performanceSpy = vi
+      .spyOn(window.performance, 'now')
+      .mockReturnValue(0);
+    const restoreScrollWidth = mockAutoTextScrollWidths();
+
+    try {
+      const { host, vm, contentElement, labelElement } =
+        mountAutoWidthTextTransitionHost({
+          label: 'Open dashboard',
+          animateSize: false,
+        });
+
+      rafController.flushAll(0);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.textContent).toBe('Open dashboard');
+
+      vm.label = 'Open';
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.textContent).toBe('Open dashboard');
+
+      rafController.flushAll(400);
+      await nextTick();
+
+      expect(labelElement.textContent).toBe('Open');
+      expect(contentElement.style.width).toBe('80px');
+      expect(labelElement.style.width).toBe('40px');
+      expect(host.classes()).not.toContain('aws-btn--auto-size-transitioning');
+    } finally {
+      restoreScrollWidth();
+      rafController.restore();
+      randomSpy.mockRestore();
+      performanceSpy.mockRestore();
+    }
+  });
+
+  it('starts textTransition immediately when auto-width target size is unchanged', async () => {
+    const rafController = createRafController();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const performanceSpy = vi
+      .spyOn(window.performance, 'now')
+      .mockReturnValue(0);
+    const restoreScrollWidth = mockAutoTextScrollWidths();
+
+    try {
+      const host = mount({
+        components: { AwesomeButton },
+        data: () => ({
+          label: 'Save',
+        }),
+        template: `
+          <AwesomeButton text-transition :size="null">
+            {{ label }}
+          </AwesomeButton>
+        `,
+      });
+
+      const contentElement = host.get('.aws-btn__content').element as HTMLElement;
+      const labelElement = host.get('.aws-btn__label').element as HTMLElement;
+
+      rafController.flushAll(0);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('80px');
+
+      (host.vm as unknown as { label: string }).label = 'Open';
+      await nextTick();
+
+      expect(host.classes()).not.toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.style.width).toBe('80px');
+      expect(labelElement.textContent).toBe('Save');
+
+      expect(rafController.size()).toBeGreaterThan(0);
+
+      runQueuedFrames(rafController, 400);
+      await nextTick();
+
+      expect(labelElement.textContent).toBe('Open');
+      expect(contentElement.style.width).toBe('80px');
+    } finally {
+      restoreScrollWidth();
+      rafController.restore();
+      randomSpy.mockRestore();
+      performanceSpy.mockRestore();
+    }
+  });
+
+  it('cancels stale shrink choreography when auto-width text changes again', async () => {
+    const rafController = createRafController();
+    const randomSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    const performanceSpy = vi
+      .spyOn(window.performance, 'now')
+      .mockReturnValue(0);
+    const restoreScrollWidth = mockAutoTextScrollWidths();
+
+    try {
+      const host = mount({
+        components: { AwesomeButton },
+        data: () => ({
+          label: 'Open dashboard',
+        }),
+        template: `
+          <AwesomeButton text-transition :size="null">
+            {{ label }}
+          </AwesomeButton>
+        `,
+      });
+
+      const contentElement = host.get('.aws-btn__content').element as HTMLElement;
+      const labelElement = host.get('.aws-btn__label').element as HTMLElement;
+      const vm = host.vm as unknown as { label: string };
+
+      rafController.flushAll(0);
+      await nextTick();
+      rafController.flushAll(1);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('168px');
+
+      vm.label = 'Open';
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.textContent).toBe('Open dashboard');
+
+      vm.label = 'Open analytics dashboard';
+      await nextTick();
+
+      expect(host.classes()).toContain('aws-btn--auto-size-transitioning');
+      expect(contentElement.style.width).toBe('168px');
+      expect(labelElement.textContent).toBe('Open dashboard');
+
+      rafController.flushAll(16);
+      await nextTick();
+
+      expect(contentElement.style.width).toBe('288px');
+      expect(labelElement.style.width).toBe('192px');
+
+      contentElement.dispatchEvent(createTransitionEnd('width'));
+      await nextTick();
+
+      for (const timestamp of [500, 600, 700, 800]) {
+        rafController.flushAll(timestamp);
+        await nextTick();
+      }
+
+      expect(labelElement.textContent).toBe('Open analytics dashboard');
+      expect(labelElement.textContent).not.toBe('Open');
+    } finally {
+      restoreScrollWidth();
       rafController.restore();
       randomSpy.mockRestore();
       performanceSpy.mockRestore();

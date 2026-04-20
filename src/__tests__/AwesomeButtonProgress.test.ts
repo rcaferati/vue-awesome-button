@@ -4,10 +4,24 @@ import { type Mock, vi } from 'vitest';
 import AwesomeButtonProgress from '../components/AwesomeButtonProgress.vue';
 import type { ProgressNext } from '../types';
 
-async function dispatchContentTransitionEnd(wrapper: VueWrapper<any>) {
+function createTransitionEnd(propertyName = 'transform') {
+  const event = new Event('transitionend', { bubbles: true });
+
+  Object.defineProperty(event, 'propertyName', {
+    configurable: true,
+    value: propertyName,
+  });
+
+  return event;
+}
+
+async function dispatchContentTransitionEnd(
+  wrapper: VueWrapper<any>,
+  propertyName = 'transform'
+) {
   wrapper
     .get('.aws-btn__content')
-    .element.dispatchEvent(new Event('transitionend', { bubbles: true }));
+    .element.dispatchEvent(createTransitionEnd(propertyName));
   await nextTick();
 }
 
@@ -69,6 +83,20 @@ describe('AwesomeButtonProgress', () => {
     expect(wrapper.find('[data-test="after"]').exists()).toBe(true);
     expect(wrapper.find('[data-test="extra"]').exists()).toBe(true);
     expect(wrapper.find('.aws-btn__progress').exists()).toBe(true);
+    expect(wrapper.classes()).toContain('aws-btn--animate-size');
+  });
+
+  it('forwards animateSize to the base button', () => {
+    const wrapper = mount(AwesomeButtonProgress, {
+      props: {
+        animateSize: false,
+      },
+      slots: {
+        default: 'Progress',
+      },
+    });
+
+    expect(wrapper.classes()).not.toContain('aws-btn--animate-size');
   });
 
   it('locks active state immediately on pressed', async () => {
@@ -106,6 +134,10 @@ describe('AwesomeButtonProgress', () => {
     });
 
     await pressProgressButton(wrapper);
+    expect(pressSpy).not.toHaveBeenCalled();
+
+    await dispatchContentTransitionEnd(wrapper, 'width');
+
     expect(pressSpy).not.toHaveBeenCalled();
 
     await dispatchContentTransitionEnd(wrapper);

@@ -25,6 +25,7 @@ export interface AwesomeButtonProps {
   disabled?: boolean;
   visible?: boolean;
   placeholder?: boolean;
+  animateSize?: boolean;
   textTransition?: boolean;
   between?: boolean;
   ripple?: boolean;
