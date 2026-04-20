@@ -1,0 +1,125 @@
+{
+  "name": "@rcaferati/vue-awesome-button",
+  "version": "1.0.0",
+  "description": "Vue 3D button components with progress states, social sharing, themes, and animated transitions",
+  "author": "Rafael Caferati",
+  "license": "MIT",
+  "homepage": "https://github.com/rcaferati/vue-awesome-button",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rcaferati/vue-awesome-button.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rcaferati/vue-awesome-button/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "style": "./dist/styles.css",
+  "files": [
+    "dist",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js",
+      "default": "./dist/index.mjs"
+    },
+    "./AwesomeButton": {
+      "types": "./dist/AwesomeButton.d.ts",
+      "import": "./dist/AwesomeButton.mjs",
+      "require": "./dist/AwesomeButton.js",
+      "default": "./dist/AwesomeButton.mjs"
+    },
+    "./AwesomeButtonProgress": {
+      "types": "./dist/AwesomeButtonProgress.d.ts",
+      "import": "./dist/AwesomeButtonProgress.mjs",
+      "require": "./dist/AwesomeButtonProgress.js",
+      "default": "./dist/AwesomeButtonProgress.mjs"
+    },
+    "./AwesomeButtonSocial": {
+      "types": "./dist/AwesomeButtonSocial.d.ts",
+      "import": "./dist/AwesomeButtonSocial.mjs",
+      "require": "./dist/AwesomeButtonSocial.js",
+      "default": "./dist/AwesomeButtonSocial.mjs"
+    },
+    "./plugin": {
+      "types": "./dist/plugin.d.ts",
+      "import": "./dist/plugin.mjs",
+      "require": "./dist/plugin.js",
+      "default": "./dist/plugin.mjs"
+    },
+    "./styles.css": "./dist/styles.css",
+    "./themes/theme-amber.css": "./dist/themes/theme-amber.css",
+    "./themes/theme-blue.css": "./dist/themes/theme-blue.css",
+    "./themes/theme-bojack.css": "./dist/themes/theme-bojack.css",
+    "./themes/theme-bruce.css": "./dist/themes/theme-bruce.css",
+    "./themes/theme-c137.css": "./dist/themes/theme-c137.css",
+    "./themes/theme-eric.css": "./dist/themes/theme-eric.css",
+    "./themes/theme-flat.css": "./dist/themes/theme-flat.css",
+    "./themes/theme-indigo.css": "./dist/themes/theme-indigo.css",
+    "./themes/theme-red.css": "./dist/themes/theme-red.css",
+    "./themes/theme-rickiest.css": "./dist/themes/theme-rickiest.css",
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "dev": "npm run storybook",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build",
+    "build": "npm run build:clean && npm run build:js && npm run build:types && npm run build:css",
+    "build:clean": "node ./scripts/clean-dist.mjs",
+    "build:js": "vite build",
+    "build:types": "vue-tsc -p tsconfig.build.json --emitDeclarationOnly",
+    "build:css": "node ./scripts/copy-css.mjs",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "prepublishOnly": "npm run build"
+  },
+  "peerDependencies": {
+    "vue": ">=3.4"
+  },
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "@storybook/addon-a11y": "^10.3.5",
+    "@storybook/addon-docs": "^10.3.5",
+    "@storybook/vue3-vite": "^10.3.5",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "@vue/test-utils": "^2.4.6",
+    "esbuild": "^0.28.0",
+    "jsdom": "^29.0.2",
+    "storybook": "^10.3.5",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.8",
+    "vitest": "^4.1.4",
+    "vue": "^3.5.32",
+    "vue-tsc": "^3.2.7"
+  },
+  "keywords": [
+    "vue",
+    "vue3",
+    "button",
+    "3d-button",
+    "progress-button",
+    "social-share",
+    "theming",
+    "animation",
+    "ui",
+    "component-library"
+  ],
+  "volta": {
+    "node": "24.15.0"
+  }
+}
