@@ -7,6 +7,7 @@ import {
 } from 'vue';
 import AwesomeButton from './AwesomeButton.vue';
 import { useProgressLifecycle } from '../composables/useProgressLifecycle';
+import { isTransformTransitionEnd } from './awesome-button/transitionEvents';
 import type {
   AwesomeButtonProgressProps,
   ButtonPressEvent,
@@ -74,10 +75,6 @@ const progressStyle = computed(() => ({
 const progressEndFallbackMs = computed(() =>
   Math.max(300, Math.ceil(resolvedProgressLoadingTime.value / 20) + 120)
 );
-
-function isTransformTransitionEnd(event: Event) {
-  return (event as TransitionEvent).propertyName === 'transform';
-}
 
 function getButtonElement() {
   return (buttonRef.value?.$el as HTMLElement | undefined) ?? null;
